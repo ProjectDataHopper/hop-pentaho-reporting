@@ -196,12 +196,15 @@ pipeline {
             -DrepositoryId="${NEXUS_SERVER_ID}" \
             -Durl="${NEXUS_URL}"
 
+          # Use sed (portable); ${var//.//} is bash-only and fails under /bin/sh (dash)
+          GROUP_PATH="$(printf '%s' "${GROUP_ID}" | sed 's|\\.|/|g')"
+          PUBLISH_URL="${NEXUS_URL}${GROUP_PATH}/${ARTIFACT_ID}/${PLUGIN_VERSION}/${ARTIFACT_ID}-${PLUGIN_VERSION}.zip"
           {
             echo "groupId=${GROUP_ID}"
             echo "artifactId=${ARTIFACT_ID}"
             echo "version=${PLUGIN_VERSION}"
             echo "hop.version=${HOP_VERSION}"
-            echo "url=${NEXUS_URL}${GROUP_ID//.//}/${ARTIFACT_ID}/${PLUGIN_VERSION}/${ARTIFACT_ID}-${PLUGIN_VERSION}.zip"
+            echo "url=${PUBLISH_URL}"
             echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } | tee "${WORKSPACE}/MARKETPLACE-PUBLISH.txt"
         '''
@@ -215,7 +218,7 @@ pipeline {
       echo "Marketplace zip published. Import hop-marketplace-repo.yaml in Hop 2.19+ and install hop-pentaho-reporting-output."
     }
     failure {
-      echo "Publish failed. Check credentials, hop-community-plugins write access, vendor lib dir, and Hop APIs for hop.version."
+      echo "Publish failed. Check console: deploy may have succeeded while a later shell step failed."
     }
   }
 }
