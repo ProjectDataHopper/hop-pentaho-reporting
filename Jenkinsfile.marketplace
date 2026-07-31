@@ -5,7 +5,7 @@
 //
 // Prerequisites on the agent:
 //   - third-party/pentaho-reporting-lib/*.jar (vendor script or copy from LGPL engine job)
-//   - Credential for Nexus deploy (default id: hop-community-plugins)
+//   - Credential for Nexus deploy (default id: nexus-hop-community)
 //   - JDK 21 + Maven tools (names match tools{} below)
 //
 // After a green build, import hop-marketplace-repo.yaml into Hop 2.19+ and install.
