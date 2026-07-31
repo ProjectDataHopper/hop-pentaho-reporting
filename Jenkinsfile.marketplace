@@ -38,7 +38,7 @@ pipeline {
     )
     string(
       name: 'NEXUS_CREDENTIALS_ID',
-      defaultValue: 'hop-community-plugins',
+      defaultValue: 'nexus-hop-community',
       description: 'Jenkins Username/Password credential for Nexus deploy'
     )
     booleanParam(
