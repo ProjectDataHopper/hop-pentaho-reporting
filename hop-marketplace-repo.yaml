@@ -1,0 +1,45 @@
+# Hop marketplace repository definition for hop-pentaho-reporting (Hop 2.19+).
+#
+# Jenkins (or scripts/publish-to-marketplace.sh) publishes the plugin zip to:
+#   https://repository.data-hopper.com/repository/hop-community-plugins/
+#
+# Import into Hop so the plugin appears in marketplace query / install:
+#
+#   ./hop marketplace repo import \
+#     https://raw.githubusercontent.com/ProjectDataHopper/hop-pentaho-reporting/refs/heads/main/hop-marketplace-repo.yaml
+#   # or a local path:
+#   ./hop marketplace repo import hop-marketplace-repo.yaml
+#
+#   ./hop marketplace query | grep -i reporting
+#   ./hop marketplace install hop-pentaho-reporting-output
+#
+# browse: true → Hop lists *.zip from this Nexus live.
+# Restart Hop after install so the plugin registry reloads.
+#
+schemaVersion: "1.0"
+kind: hop-marketplace-repository
+
+id: data-hopper-community
+name: Data Hopper Community Plugins
+url: https://repository.data-hopper.com/repository/hop-community-plugins/
+primary: false
+enabled: true
+browse: true
+includeSnapshots: true
+homepage: https://github.com/ProjectDataHopper/hop-pentaho-reporting
+description: >
+  Community Maven repository with Project Data Hopper plugins for Apache Hop,
+  including Pentaho Reporting Output (LGPL classic engine — not an ASF release).
+
+# Optional metadata (enriches live Nexus list; not a cache)
+plugins:
+  - groupId: org.projectdatahopper.hop
+    artifactId: hop-pentaho-reporting-output
+    version: 1.0.0
+    minHopVersion: "2.19.0"
+    name: Pentaho Reporting Output
+    category: Community
+    description: >
+      Render Pentaho Reporting design files (.prpt) to PDF, HTML, Excel, CSV or RTF
+      from Apache Hop pipelines. Third-party LGPL plugin (engine is LGPL; not ASF).
+    installPath: plugins/transforms/pentaho-reporting-output

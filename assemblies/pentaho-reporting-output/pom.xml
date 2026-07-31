@@ -19,6 +19,7 @@
   </description>
 
   <dependencies>
+    <!-- Pulls classic-core (+ transitives) into the zip lib/ via assembly -->
     <dependency>
       <groupId>org.projectdatahopper.hop</groupId>
       <artifactId>hop-transform-pentaho-reporting-output</artifactId>

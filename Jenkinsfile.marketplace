@@ -1,0 +1,221 @@
+// Publish hop-pentaho-reporting-output marketplace zip to hop-community-plugins.
+//
+// Jenkins: New Item → Pipeline → Pipeline script from SCM → this repo
+//   Script Path: Jenkinsfile.marketplace
+//
+// Prerequisites on the agent:
+//   - third-party/pentaho-reporting-lib/*.jar (vendor script or copy from LGPL engine job)
+//   - Credential for Nexus deploy (default id: hop-community-plugins)
+//   - JDK 21 + Maven tools (names match tools{} below)
+//
+// After a green build, import hop-marketplace-repo.yaml into Hop 2.19+ and install.
+
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 1, unit: 'HOURS')
+  }
+
+  parameters {
+    string(
+      name: 'HOP_VERSION',
+      defaultValue: '2.18.1',
+      description: 'Hop Maven version to compile against (APIs)'
+    )
+    string(
+      name: 'NEXUS_URL',
+      defaultValue: 'https://repository.data-hopper.com/repository/hop-community-plugins/',
+      description: 'Marketplace Maven repository base URL'
+    )
+    string(
+      name: 'NEXUS_SERVER_ID',
+      defaultValue: 'hop-community-plugins',
+      description: 'settings.xml server id / deploy repositoryId'
+    )
+    string(
+      name: 'NEXUS_CREDENTIALS_ID',
+      defaultValue: 'hop-community-plugins',
+      description: 'Jenkins Username/Password credential for Nexus deploy'
+    )
+    booleanParam(
+      name: 'SKIP_TESTS',
+      defaultValue: true,
+      description: 'Skip unit tests when packaging'
+    )
+  }
+
+  environment {
+    MAVEN_OPTS = '-Xmx2g'
+    GROUP_ID = 'org.projectdatahopper.hop'
+    ARTIFACT_ID = 'hop-pentaho-reporting-output'
+    HOP_VERSION = "${params.HOP_VERSION}"
+    NEXUS_URL = "${params.NEXUS_URL}"
+    NEXUS_SERVER_ID = "${params.NEXUS_SERVER_ID}"
+  }
+
+  tools {
+    jdk 'jdk-21'
+    maven 'Maven 3.9.9'
+  }
+
+  stages {
+    stage('Show toolchain') {
+      steps {
+        sh '''
+          set -euo pipefail
+          java -version
+          mvn -version
+        '''
+      }
+    }
+
+    stage('Check engine on Maven') {
+      steps {
+        sh '''
+          set -euo pipefail
+          # The zip packages classic-core (+ deps) from Maven into plugin lib/.
+          # Prefer LGPL engine already published by the pentaho-reporting-lgpl-engine job.
+          echo "Resolving classic-core for packaging (hop.version=${HOP_VERSION})..."
+          if mvn -B -q dependency:get \
+              -Dartifact=org.pentaho.reporting.engine:classic-core:${PENTAHO_REPORTING_VERSION:-10.1.0.0-SNAPSHOT} \
+              -DremoteRepositories=https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/ \
+              2>/dev/null; then
+            echo "OK: classic-core available from pentaho-reporting-lgpl Nexus"
+          elif [ -d third-party/pentaho-reporting-lib ] && ls third-party/pentaho-reporting-lib/*.jar >/dev/null 2>&1; then
+            echo "OK: using third-party/pentaho-reporting-lib fallback jars"
+          else
+            echo "ERROR: Need the LGPL reporting engine to package into the marketplace zip."
+            echo "  1) Run job pentaho-reporting-lgpl-engine successfully (publishes classic-core), or"
+            echo "  2) Put engine jars in third-party/pentaho-reporting-lib/ (vendor script)."
+            exit 1
+          fi
+        '''
+      }
+    }
+
+    stage('Prepare Maven settings') {
+      steps {
+        withCredentials([usernamePassword(
+            credentialsId: "${params.NEXUS_CREDENTIALS_ID}",
+            usernameVariable: 'NEXUS_USER',
+            passwordVariable: 'NEXUS_PASS')]) {
+          script {
+            def xmlEscape = { String s ->
+              if (s == null) return ''
+              return s.replace('&', '&amp;')
+                  .replace('<', '&lt;')
+                  .replace('>', '&gt;')
+                  .replace('"', '&quot;')
+                  .replace("'", '&apos;')
+            }
+            def userXml = xmlEscape(env.NEXUS_USER)
+            def passXml = xmlEscape(env.NEXUS_PASS)
+            def serverId = xmlEscape(env.NEXUS_SERVER_ID)
+            def deployUrl = xmlEscape(env.NEXUS_URL)
+            writeFile file: "${env.WORKSPACE}/ci-settings.xml", text: """\
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">
+  <servers>
+    <server>
+      <id>${serverId}</id>
+      <username>${userXml}</username>
+      <password>${passXml}</password>
+    </server>
+  </servers>
+  <profiles>
+    <profile>
+      <id>data-hopper</id>
+      <repositories>
+        <repository>
+          <id>central</id>
+          <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <repository>
+          <id>pentaho-reporting-lgpl</id>
+          <url>https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/</url>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+        <repository>
+          <id>${serverId}</id>
+          <url>${deployUrl}</url>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>data-hopper</activeProfile>
+  </activeProfiles>
+</settings>
+"""
+          }
+        }
+      }
+    }
+
+    stage('Package plugin zip') {
+      steps {
+        sh '''
+          set -euo pipefail
+          TEST_FLAGS=""
+          if [ "${SKIP_TESTS}" = "true" ]; then
+            TEST_FLAGS="-DskipTests"
+          fi
+          # Packages transform jar + classic-core (+ deps) into the zip under lib/
+          mvn -B -s "${WORKSPACE}/ci-settings.xml" clean package ${TEST_FLAGS} \
+            -Dhop.version="${HOP_VERSION}" \
+            -Dpentaho-reporting.version=10.1.0.0-SNAPSHOT
+        '''
+      }
+    }
+
+    stage('Deploy zip to hop-community-plugins') {
+      steps {
+        sh '''
+          set -euo pipefail
+          PLUGIN_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version -Dhop.version="${HOP_VERSION}" | tail -1)"
+          ZIP="${WORKSPACE}/assemblies/pentaho-reporting-output/target/${ARTIFACT_ID}-${PLUGIN_VERSION}.zip"
+          if [ ! -f "${ZIP}" ]; then
+            echo "Missing ${ZIP}"
+            ls -la "${WORKSPACE}/assemblies/pentaho-reporting-output/target/" || true
+            exit 1
+          fi
+          echo "Deploying ${GROUP_ID}:${ARTIFACT_ID}:${PLUGIN_VERSION}"
+          mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+            org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
+            -DgroupId="${GROUP_ID}" \
+            -DartifactId="${ARTIFACT_ID}" \
+            -Dversion="${PLUGIN_VERSION}" \
+            -Dpackaging=zip \
+            -Dfile="${ZIP}" \
+            -DgeneratePom=true \
+            -DrepositoryId="${NEXUS_SERVER_ID}" \
+            -Durl="${NEXUS_URL}"
+
+          {
+            echo "groupId=${GROUP_ID}"
+            echo "artifactId=${ARTIFACT_ID}"
+            echo "version=${PLUGIN_VERSION}"
+            echo "hop.version=${HOP_VERSION}"
+            echo "url=${NEXUS_URL}${GROUP_ID//.//}/${ARTIFACT_ID}/${PLUGIN_VERSION}/${ARTIFACT_ID}-${PLUGIN_VERSION}.zip"
+            echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } | tee "${WORKSPACE}/MARKETPLACE-PUBLISH.txt"
+        '''
+        archiveArtifacts artifacts: 'MARKETPLACE-PUBLISH.txt,assemblies/pentaho-reporting-output/target/*.zip', fingerprint: true
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Marketplace zip published. Import hop-marketplace-repo.yaml in Hop 2.19+ and install hop-pentaho-reporting-output."
+    }
+    failure {
+      echo "Publish failed. Check credentials, hop-community-plugins write access, vendor lib dir, and Hop APIs for hop.version."
+    }
+  }
+}

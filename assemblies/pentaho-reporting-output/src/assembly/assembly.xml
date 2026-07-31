@@ -6,46 +6,69 @@
   <formats>
     <format>zip</format>
   </formats>
-  <!-- Unzip into the Hop client plugins/ directory -->
-  <baseDirectory>transforms/pentaho-reporting-output</baseDirectory>
+  <!--
+    One marketplace zip: unzip into the Hop client root.
+    Contains the Hop transform jar AND the LGPL reporting engine under lib/.
+  -->
+  <baseDirectory>.</baseDirectory>
 
   <files>
     <file>
       <source>${project.basedir}/src/main/resources/version.xml</source>
-      <outputDirectory>.</outputDirectory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output</outputDirectory>
       <filtered>true</filtered>
     </file>
     <file>
       <source>${maven.multiModuleProjectDirectory}/LICENSE</source>
-      <outputDirectory>.</outputDirectory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output</outputDirectory>
     </file>
     <file>
       <source>${maven.multiModuleProjectDirectory}/NOTICE</source>
-      <outputDirectory>.</outputDirectory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output</outputDirectory>
     </file>
   </files>
 
-  <fileSets>
-    <!-- LGPL classic engine + transitive jars (see scripts/vendor-reporting-libs.sh) -->
-    <fileSet>
-      <directory>${reporting.vendor.lib.dir}</directory>
-      <outputDirectory>lib</outputDirectory>
-      <includes>
-        <include>*.jar</include>
-      </includes>
-    </fileSet>
-  </fileSets>
-
   <dependencySets>
-    <!-- Plugin jar at plugin root -->
+    <!-- Hop plugin jar -->
     <dependencySet>
       <useProjectArtifact>false</useProjectArtifact>
-      <outputDirectory>.</outputDirectory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output</outputDirectory>
       <includes>
         <include>org.projectdatahopper.hop:hop-transform-pentaho-reporting-output:jar</include>
       </includes>
       <outputFileNameMapping>${artifact.artifactId}-${artifact.version}.${artifact.extension}</outputFileNameMapping>
     </dependencySet>
-  </dependencySets>
-</assembly>
 
+    <!--
+      Reporting engine + its transitive jars (classic-core, lib*, POI, …).
+      Resolved from Maven (e.g. pentaho-reporting-lgpl Nexus after the engine job).
+      Hop and Lombok stay out — Hop already provides those.
+    -->
+    <dependencySet>
+      <useProjectArtifact>false</useProjectArtifact>
+      <useTransitiveDependencies>true</useTransitiveDependencies>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output/lib</outputDirectory>
+      <scope>runtime</scope>
+      <excludes>
+        <exclude>org.projectdatahopper.hop:hop-transform-pentaho-reporting-output</exclude>
+        <exclude>org.apache.hop:*</exclude>
+        <exclude>org.projectlombok:*</exclude>
+        <exclude>io.smallrye:*</exclude>
+      </excludes>
+    </dependencySet>
+  </dependencySets>
+
+  <!--
+    Optional extra jars from a flat folder (bootstrap when Maven does not have
+    the full engine tree yet). Empty folder is fine.
+  -->
+  <fileSets>
+    <fileSet>
+      <directory>${reporting.vendor.lib.dir}</directory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output/lib</outputDirectory>
+      <includes>
+        <include>*.jar</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+</assembly>

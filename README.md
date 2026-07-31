@@ -58,10 +58,12 @@ assemblies/pentaho-reporting-output/target/hop-pentaho-reporting-output-1.0.0-SN
 
 ## Install
 
-Unzip the assembly into your Hop client `plugins/` folder:
+### Manual zip
+
+Marketplace-style zip expands into the **Hop client root** (not only `plugins/`):
 
 ```bash
-unzip hop-pentaho-reporting-output-*.zip -d "$HOP_HOME/plugins"
+unzip hop-pentaho-reporting-output-*.zip -d "$HOP_HOME"
 ```
 
 Expected layout:
@@ -72,11 +74,35 @@ $HOP_HOME/plugins/transforms/pentaho-reporting-output/
   version.xml
   LICENSE
   NOTICE
-  lib/          # classic engine jars land here in a later phase
+  lib/          # LGPL classic engine jars
 ```
 
 Restart Hop. The transform appears under **Output** as **Pentaho Reporting Output**
 (plugin id `PentahoReportingOutput`).
+
+### Hop 2.19 marketplace (Nexus)
+
+You publish **one zip** that already includes the transform **and** the reporting
+engine jars under `lib/`. Users only install that zip.
+
+```bash
+# After classic-core is on pentaho-reporting-lgpl (engine Jenkins job)
+export NEXUS_USER=... NEXUS_PASSWORD=...
+./scripts/publish-to-marketplace.sh
+```
+
+Details: [docs/marketplace-publish.md](docs/marketplace-publish.md).
+
+Users:
+
+```bash
+./hop marketplace repo import hop-marketplace-repo.yaml
+./hop marketplace install hop-pentaho-reporting-output
+# restart Hop
+```
+
+Repository: `https://repository.data-hopper.com/repository/hop-community-plugins/`  
+GAV: `org.projectdatahopper.hop:hop-pentaho-reporting-output:{version}` (zip)
 
 ## Current behavior
 

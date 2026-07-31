@@ -36,16 +36,28 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.release>21</maven.compiler.release>
 
-    <!-- Align with local ProjectDataHopper Hop stack; override with -Dhop.version=... -->
+    <!--
+      Hop APIs to compile against. Marketplace install UI needs Hop 2.19+;
+      plugin may still run on 2.18.x if APIs match. Override: -Dhop.version=2.19.0-SNAPSHOT
+    -->
     <hop.version>2.18.1</hop.version>
 
     <!--
       LGPL classic engine line (9.4 / 10.0 / 10.1). 10.2+ is BSL — do not use.
-      Hitachi public Maven currently returns HTML; install jars via
-      scripts/vendor-reporting-libs.sh into third-party/ and local ~/.m2.
+      Prefer Jenkins-built 10.1.0.0-SNAPSHOT from pentaho-reporting-lgpl when available;
+      otherwise scripts/vendor-reporting-libs.sh → third-party/pentaho-reporting-lib.
     -->
-    <pentaho-reporting.version>9.4.0.0-343</pentaho-reporting.version>
+    <!-- Prefer Jenkins-built LGPL 10.1 on Nexus; override if you only have 9.4 vendor jars -->
+    <pentaho-reporting.version>10.1.0.0-SNAPSHOT</pentaho-reporting.version>
+    <!-- Optional flat-folder extras merged into the zip lib/ (may be empty) -->
     <reporting.vendor.lib.dir>${maven.multiModuleProjectDirectory}/third-party/pentaho-reporting-lib</reporting.vendor.lib.dir>
+
+    <!-- Marketplace zip coordinates (deployed to hop-community-plugins) -->
+    <marketplace.groupId>org.projectdatahopper.hop</marketplace.groupId>
+    <marketplace.artifactId>hop-pentaho-reporting-output</marketplace.artifactId>
+    <hop.community.nexus.url>https://repository.data-hopper.com/repository/hop-community-plugins/</hop.community.nexus.url>
+    <hop.community.nexus.serverId>hop-community-plugins</hop.community.nexus.serverId>
+    <pentaho.reporting.lgpl.nexus.url>https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/</pentaho.reporting.lgpl.nexus.url>
 
     <lombok.version>1.18.42</lombok.version>
     <jandex.version>3.5.3</jandex.version>
@@ -55,7 +67,21 @@
     <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
     <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
     <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+    <maven-deploy-plugin.version>3.1.3</maven-deploy-plugin.version>
   </properties>
+
+  <distributionManagement>
+    <repository>
+      <id>${hop.community.nexus.serverId}</id>
+      <name>Data Hopper community Hop plugins (releases)</name>
+      <url>${hop.community.nexus.url}</url>
+    </repository>
+    <snapshotRepository>
+      <id>${hop.community.nexus.serverId}</id>
+      <name>Data Hopper community Hop plugins (snapshots)</name>
+      <url>${hop.community.nexus.url}</url>
+    </snapshotRepository>
+  </distributionManagement>
 
   <dependencyManagement>
     <dependencies>
@@ -163,6 +189,17 @@
       <url>https://repository.apache.org/snapshots/</url>
       <releases>
         <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>pentaho-reporting-lgpl</id>
+      <name>Data Hopper LGPL reporting engine</name>
+      <url>${pentaho.reporting.lgpl.nexus.url}</url>
+      <releases>
+        <enabled>true</enabled>
       </releases>
       <snapshots>
         <enabled>true</enabled>
