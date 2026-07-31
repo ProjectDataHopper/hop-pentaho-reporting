@@ -1,16 +1,7 @@
-# Compiled class file
+# Build
+target/
+**/target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -19,6 +10,32 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Allow committed bootstrap jars for Jenkins (LGPL-era third-party)
+!jenkins/seed-jars/
+!jenkins/seed-jars/**
+
+# IDE
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.vscode/
+
+# OS / logs
+.DS_Store
+*.log
 hs_err_pid*
 replay_pid*
+
+# Maven
+.flattened-pom.xml
+dependency-reduced-pom.xml
+
+# Vendored reporting engine binaries (install via scripts/vendor-reporting-libs.sh)
+third-party/pentaho-reporting-lib/
+
+# BlueJ / misc
+*.ctxt
+.mtj.tmp/
+
