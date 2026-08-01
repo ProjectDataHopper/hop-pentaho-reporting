@@ -18,7 +18,11 @@ Sample reports from the Pentaho Reporting designer CE assembly:
 | `evaluation_blank.prpt` | Blank evaluation template |
 | `metadata.xmi` / `steelwheels.mondrian.xml` | Metadata / Mondrian supporting files |
 
-Many samples expect the classic **Steel Wheels** sample database or other datasources; rendering may need JDBC/Mondrian configuration. Use simple chart samples for first smoke tests.
+Many samples expect the classic **Steel Wheels** / **SampleData** database or other
+datasources; rendering needs a Hop RDBMS connection (JNDI names are rewritten by
+the transform). Chart samples need the plugin’s `legacy-charts` + JFreeChart jars
+on the classpath (blank ~900-byte PDFs mean those jars are missing). Most chart
+designs do **not** require Hop parameter mappings (defaults are embedded).
 
 ## Re-import
 

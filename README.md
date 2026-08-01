@@ -77,6 +77,11 @@ $HOP_HOME/plugins/transforms/pentaho-reporting-output/
   lib/          # LGPL classic engine jars
 ```
 
+The zip intentionally **does not** ship jars already on Hop’s app classpath
+(`commons-vfs2`, `commons-io`, Guava, SLF4J, …). Hop’s plugin classloader is
+child-first; a second `commons-vfs2` causes `LinkageError` when the transform
+calls `HopVfs.getFileObject()` (`FileObject` from two classloaders).
+
 Restart Hop. The transform appears under **Output** as **Pentaho Reporting Output**
 (plugin id `PentahoReportingOutput`).
 
@@ -93,30 +98,93 @@ export NEXUS_USER=... NEXUS_PASSWORD=...
 
 Details: [docs/marketplace-publish.md](docs/marketplace-publish.md).
 
-Users:
+Users (Hop **2.19+**):
 
 ```bash
+# once: register the Data Hopper community repo
 ./hop marketplace repo import hop-marketplace-repo.yaml
+
+# install (example output below)
 ./hop marketplace install hop-pentaho-reporting-output
-# restart Hop
+# Restart Hop so the plugin loads
 ```
 
+Example install session:
+
+```text
+$ sh hop marketplace install hop-pentaho-reporting-output
+Resolved hop-pentaho-reporting-output → org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT (prefer repo 'data-hopper-community')
+… Marketplace - Downloading org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT from https://repository.data-hopper.com/repository/hop-community-plugins/…
+Downloading: org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT (65.8MB)
+  [████████████████████████] 100%
+… Marketplace - Installed org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT. Restart Hop to load the plugin.
+Plugin … installed under <HOP_HOME> from repo 'data-hopper-community'. Restart Hop to load it.
+```
+
+After restart, the transform **Pentaho Reporting Output** appears under **Output**  
+(plugin id `PentahoReportingOutput`).
+
 Repository: `https://repository.data-hopper.com/repository/hop-community-plugins/`  
-GAV: `org.projectdatahopper.hop:hop-pentaho-reporting-output:{version}` (zip)
+GAV: `org.projectdatahopper.hop:hop-pentaho-reporting-output:{version}` (zip, ~66MB including LGPL engine)
 
 ## Current behavior
 
-- Dialog configures report path, output path, processor type, and parameters
+- Dialog configures report path, output path, processor type, parameters, and
+  **JNDI → Hop connection** mappings
 - Metadata saves/loads with Hop `@HopMetadataProperty` (legacy-style XML keys)
-- Runtime boots the classic engine, binds parameters, and exports PDF / HTML /
-  Excel / CSV / RTF via Hop VFS (plugin-isolated classloader + vendored `lib/`)
+- Runtime boots the classic engine, rewrites JNDI SQL providers to Hop RDBMS
+  connections, binds parameters, and exports PDF / HTML / Excel / CSV / RTF via
+  Hop VFS (plugin-isolated classloader + vendored `lib/`)
+
+### Database / JNDI (important for migrated `.prpt` files)
+
+Pentaho Report Designer and PDI typically store SQL datasources as **JNDI names**
+(e.g. `SampleData`), not JDBC URLs. PDI resolved those via file-based
+**simple-jndi** (`$PDI_HOME/simple-jndi/jdbc.properties`). Apache Hop has no
+equivalent JNDI environment.
+
+This plugin **rewrites** JNDI connection providers on the loaded report to use
+Hop **RDBMS connection** metadata before export:
+
+1. **Explicit map** in the transform dialog: JNDI name → Hop connection
+2. **Same-name** (default on): JNDI `SampleData` binds to a Hop connection
+   named `SampleData` if it exists
+3. Otherwise fail early with a clear error listing unbound names and available
+   Hop connections (toggle **Fail if JNDI datasource is not mapped**)
+
+**Quick fix for the classic sample error** (`Cannot find the requested datasource
+'SampleData'`): create a Hop RDBMS connection named `SampleData` (or map
+`SampleData` → your connection in the transform), ensure the JDBC driver is
+available to Hop, then re-run.
+
+Reports that already use driver/URL connections in the `.prpt` are left unchanged.
+
+### Charts (legacy JFreeChart)
+
+PRD chart samples use **legacy-chart** elements (`legacy-charts` module + JFreeChart).
+The plugin zip must include `legacy-charts`, `jfreechart`, and `jcommon` under
+`lib/` (wired as Maven dependencies). Without them, export still produces a
+valid but **blank** PDF (≈900 bytes).
+
+If `legacy-charts` is missing from Maven/Nexus, vendor it from PDI CE:
+
+```bash
+scripts/vendor-reporting-libs.sh \
+  /path/to/data-integration/plugins/pentaho-reporting-plugins/lib
+# then re-package; or install the jar into m2 as
+# org.pentaho.reporting.engine:legacy-charts:${pentaho-reporting.version}
+```
+
+Jenkins engine job: enable **DEPLOY_SAFE_EXTENSIONS** to publish `legacy-charts`
+on the LGPL line to Nexus.
 
 ## Planned
 
 1. Optional bump to **10.1.x** LGPL when artifacts can be resolved cleanly
-2. “Get parameters from .prpt” in the dialog
-3. Integration tests and sample `.prpt` pipelines
-4. Exclude remaining optional/heavy extension jars if not needed
+2. “Get parameters / JNDI names from .prpt” in the dialog
+3. Optional simple-jndi file compatibility mode for PDI drop-in configs
+4. Integration tests and sample `.prpt` pipelines
+5. Mondrian/OLAP JNDI providers if needed
 
 ## License baseline (do not break)
 

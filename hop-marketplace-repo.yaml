@@ -12,9 +12,14 @@
 #
 #   ./hop marketplace query | grep -i reporting
 #   ./hop marketplace install hop-pentaho-reporting-output
+#   # Restart Hop so the plugin registry reloads
+#
+# Example install session:
+#   Resolved hop-pentaho-reporting-output → org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT
+#   Downloading … (~66MB) from hop-community-plugins
+#   Installed … Restart Hop to load the plugin.
 #
 # browse: true → Hop lists *.zip from this Nexus live.
-# Restart Hop after install so the plugin registry reloads.
 #
 schemaVersion: "1.0"
 kind: hop-marketplace-repository

@@ -219,6 +219,11 @@ public class PentahoReportingOutput
       Thread.currentThread().setContextClassLoader(PentahoReportingOutput.class.getClassLoader());
 
       MasterReport report = loadMasterReport(sourceFilename, this);
+
+      // Rewrite JNDI SQL providers → Hop DatabaseMeta before the engine queries
+      ReportConnectionBinder.bind(
+          report, meta, this, getMetadataProvider(), this, getLogChannel());
+
       bindParameters(report, row, sourceFilename);
 
       PentahoReportingSwingGuiContext context = new PentahoReportingSwingGuiContext();
@@ -241,7 +246,7 @@ public class PentahoReportingOutput
           // best effort
         }
         if (context.getCause() != null) {
-          throw new HopException(context.getMessage(), context.getCause());
+          throw new HopException(enrichJndiError(context.getMessage(), context.getCause()), context.getCause());
         }
         throw new HopTransformException(context.getMessage());
       }
@@ -268,6 +273,34 @@ public class PentahoReportingOutput
     } finally {
       Thread.currentThread().setContextClassLoader(previous);
     }
+  }
+
+  /**
+   * When the engine still fails with a JNDI lookup error (unmapped datasource or
+   * non-SQL path), append a short Hop-oriented hint.
+   */
+  static String enrichJndiError(String message, Throwable cause) {
+    String base = message != null ? message : "Export failed";
+    if (cause == null) {
+      return base;
+    }
+    StringBuilder chain = new StringBuilder();
+    Throwable t = cause;
+    int depth = 0;
+    while (t != null && depth < 12) {
+      if (t.getMessage() != null) {
+        chain.append(' ').append(t.getMessage());
+      }
+      t = t.getCause();
+      depth++;
+    }
+    String lower = chain.toString().toLowerCase();
+    if (lower.contains("jndi") || lower.contains("datasource")) {
+      return base
+          + Const.CR
+          + BaseMessages.getString(PKG, "PentahoReportingOutput.Exception.JndiHint");
+    }
+    return base;
   }
 
   private void bindParameters(MasterReport report, Object[] row, String sourceFilename)

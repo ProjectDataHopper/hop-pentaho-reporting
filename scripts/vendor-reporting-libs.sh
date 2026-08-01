@@ -59,11 +59,32 @@ install_jar() {
 echo "Installing compile artifacts into local Maven repository..."
 install_jar org.pentaho.reporting.engine classic-core "${DEST}/classic-core-${VERSION}.jar"
 install_jar org.pentaho.reporting.engine classic-extensions "${DEST}/classic-extensions-${VERSION}.jar"
+# Required for chart samples (legacy-chart elements / JFreeChart expressions)
+install_jar org.pentaho.reporting.engine legacy-charts "${DEST}/legacy-charts-${VERSION}.jar"
 for lib in libbase libdocbundle libfonts libformat libformula libloader libpixie \
            librepository libserializer libsparkline libswing libxml flute; do
   install_jar org.pentaho.reporting.library "${lib}" "${DEST}/${lib}-${VERSION}.jar"
 done
 
+# JFreeChart stack if present in the PDI lib (otherwise Maven Central provides 1.0.13 / 1.0.16)
+for jf in "${DEST}"/jfreechart-*.jar; do
+  [[ -f "${jf}" ]] || continue
+  jf_ver="$(basename "${jf}" | sed -E 's/jfreechart-(.*)\.jar/\1/')"
+  mvn -q install:install-file \
+    -DgroupId=jfree -DartifactId=jfreechart -Dversion="${jf_ver}" \
+    -Dpackaging=jar -Dfile="${jf}" -DgeneratePom=true
+  echo "  m2: jfree:jfreechart:${jf_ver}"
+done
+for jc in "${DEST}"/jcommon-*.jar; do
+  [[ -f "${jc}" ]] || continue
+  jc_ver="$(basename "${jc}" | sed -E 's/jcommon-(.*)\.jar/\1/')"
+  mvn -q install:install-file \
+    -DgroupId=jfree -DartifactId=jcommon -Dversion="${jc_ver}" \
+    -Dpackaging=jar -Dfile="${jc}" -DgeneratePom=true
+  echo "  m2: jfree:jcommon:${jc_ver}"
+done
+
 echo
 echo "Done. Vendored $(ls "${DEST}" | wc -l) jars into ${DEST}"
 echo "Set -Dpentaho-reporting.version=${VERSION} if different from the project POM property."
+echo "Charts need legacy-charts + jfreechart on the plugin classpath (plugin module dependency)."

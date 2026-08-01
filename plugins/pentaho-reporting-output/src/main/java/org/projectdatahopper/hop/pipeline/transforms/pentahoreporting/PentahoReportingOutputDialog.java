@@ -19,8 +19,10 @@
 package org.projectdatahopper.hop.pipeline.transforms.pentahoreporting;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.apache.hop.core.Const;
+import org.apache.hop.core.database.DatabaseMeta;
 import org.apache.hop.core.exception.HopException;
 import org.apache.hop.core.row.IRowMeta;
 import org.apache.hop.core.util.Utils;
@@ -62,6 +64,9 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
   private TextVar wOutputFile;
   private CCombo wProcessor;
   private Button wCreateParentFolder;
+  private Button wUseSameNameHopConnections;
+  private Button wFailIfUnboundJndi;
+  private TableView wConnectionMappings;
   private TableView wParameters;
 
   private boolean gotPreviousFields;
@@ -116,7 +121,8 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     fdlInputField.right = new FormAttachment(middle, -margin);
     wlInputField.setLayoutData(fdlInputField);
 
-    wInputField = new ComboVar(variables, shell, SWT.BORDER | SWT.READ_ONLY);
+    // Editable combo: saved field names must still show when not yet in the stream list
+    wInputField = new ComboVar(variables, shell, SWT.BORDER);
     PropsUi.setLook(wInputField);
     wInputField.addModifyListener(lsMod);
     FormData fdInputField = new FormData();
@@ -137,7 +143,7 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     fdlOutputField.right = new FormAttachment(middle, -margin);
     wlOutputField.setLayoutData(fdlOutputField);
 
-    wOutputField = new ComboVar(variables, shell, SWT.BORDER | SWT.READ_ONLY);
+    wOutputField = new ComboVar(variables, shell, SWT.BORDER);
     PropsUi.setLook(wOutputField);
     wOutputField.addModifyListener(lsMod);
     FormData fdOutputField = new FormData();
@@ -224,6 +230,79 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     wCreateParentFolder.addSelectionListener(lsSel);
     lastControl = wCreateParentFolder;
 
+    // Same-name Hop connections for JNDI
+    wUseSameNameHopConnections = new Button(shell, SWT.CHECK);
+    PropsUi.setLook(wUseSameNameHopConnections);
+    wUseSameNameHopConnections.setText(
+        BaseMessages.getString(PKG, "PentahoReportingOutputDialog.UseSameNameHopConnections.Label"));
+    wUseSameNameHopConnections.setToolTipText(
+        BaseMessages.getString(
+            PKG, "PentahoReportingOutputDialog.UseSameNameHopConnections.Tooltip"));
+    FormData fdSameName = new FormData();
+    fdSameName.left = new FormAttachment(middle, 0);
+    fdSameName.top = new FormAttachment(lastControl, margin);
+    fdSameName.right = new FormAttachment(100, 0);
+    wUseSameNameHopConnections.setLayoutData(fdSameName);
+    wUseSameNameHopConnections.addSelectionListener(lsSel);
+    lastControl = wUseSameNameHopConnections;
+
+    // Fail if unbound JNDI
+    wFailIfUnboundJndi = new Button(shell, SWT.CHECK);
+    PropsUi.setLook(wFailIfUnboundJndi);
+    wFailIfUnboundJndi.setText(
+        BaseMessages.getString(PKG, "PentahoReportingOutputDialog.FailIfUnboundJndi.Label"));
+    wFailIfUnboundJndi.setToolTipText(
+        BaseMessages.getString(PKG, "PentahoReportingOutputDialog.FailIfUnboundJndi.Tooltip"));
+    FormData fdFailJndi = new FormData();
+    fdFailJndi.left = new FormAttachment(middle, 0);
+    fdFailJndi.top = new FormAttachment(lastControl, margin);
+    fdFailJndi.right = new FormAttachment(100, 0);
+    wFailIfUnboundJndi.setLayoutData(fdFailJndi);
+    wFailIfUnboundJndi.addSelectionListener(lsSel);
+    lastControl = wFailIfUnboundJndi;
+
+    // JNDI → Hop connection mappings
+    Label wlConnections = new Label(shell, SWT.RIGHT);
+    wlConnections.setText(
+        BaseMessages.getString(PKG, "PentahoReportingOutputDialog.ConnectionMappings.Label"));
+    PropsUi.setLook(wlConnections);
+    FormData fdlConnections = new FormData();
+    fdlConnections.left = new FormAttachment(0, 0);
+    fdlConnections.top = new FormAttachment(lastControl, margin * 2);
+    fdlConnections.right = new FormAttachment(middle, -margin);
+    wlConnections.setLayoutData(fdlConnections);
+
+    String[] hopConnectionNames = loadHopConnectionNames();
+    ColumnInfo[] connectionColumns =
+        new ColumnInfo[] {
+          new ColumnInfo(
+              BaseMessages.getString(PKG, "PentahoReportingOutputDialog.Column.JndiName"),
+              ColumnInfo.COLUMN_TYPE_TEXT,
+              false),
+          new ColumnInfo(
+              BaseMessages.getString(PKG, "PentahoReportingOutputDialog.Column.HopConnection"),
+              ColumnInfo.COLUMN_TYPE_CCOMBO,
+              hopConnectionNames,
+              false)
+        };
+
+    wConnectionMappings =
+        new TableView(
+            variables,
+            shell,
+            SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI | SWT.V_SCROLL | SWT.H_SCROLL,
+            connectionColumns,
+            input.getConnectionMappings() != null ? input.getConnectionMappings().size() : 1,
+            false,
+            lsMod,
+            props);
+    FormData fdConnections = new FormData();
+    fdConnections.left = new FormAttachment(0, 0);
+    fdConnections.top = new FormAttachment(wlConnections, margin);
+    fdConnections.right = new FormAttachment(100, 0);
+    fdConnections.bottom = new FormAttachment(55, 0);
+    wConnectionMappings.setLayoutData(fdConnections);
+
     // Parameters table
     Label wlParameters = new Label(shell, SWT.RIGHT);
     wlParameters.setText(
@@ -231,7 +310,7 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     PropsUi.setLook(wlParameters);
     FormData fdlParameters = new FormData();
     fdlParameters.left = new FormAttachment(0, 0);
-    fdlParameters.top = new FormAttachment(lastControl, margin * 2);
+    fdlParameters.top = new FormAttachment(wConnectionMappings, margin * 2);
     fdlParameters.right = new FormAttachment(middle, -margin);
     wlParameters.setLayoutData(fdlParameters);
 
@@ -268,7 +347,6 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     buildButtonBar().ok(e -> ok()).cancel(e -> cancel()).build();
 
     getData();
-    setFlags();
     focusTransformName();
     BaseDialog.defaultShellHandling(shell, c -> ok(), c -> cancel());
 
@@ -277,15 +355,40 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
 
   private void getData() {
     wTransformName.setText(Const.NVL(transformName, ""));
+
+    // Populate combo item lists BEFORE setText — SWT CCombo.setItems() clears the current text.
+    populatePreviousFields();
+
     wUseValuesFromFields.setSelection(input.isUseValuesFromFields());
     wInputField.setText(Const.NVL(input.getInputFileField(), ""));
     wOutputField.setText(Const.NVL(input.getOutputFileField(), ""));
     wInputFile.setText(Const.NVL(input.getInputFile(), ""));
     wOutputFile.setText(Const.NVL(input.getOutputFile(), ""));
-    wProcessor.setText(input.getProcessorType().getDescription());
     wCreateParentFolder.setSelection(input.isCreateParentFolder());
+    wUseSameNameHopConnections.setSelection(input.isUseSameNameHopConnections());
+    wFailIfUnboundJndi.setSelection(input.isFailIfUnboundJndi());
 
-    populatePreviousFields();
+    ProcessorType processorType = input.getProcessorType();
+    if (processorType != null) {
+      wProcessor.setText(processorType.getDescription());
+    } else {
+      wProcessor.setText(ProcessorType.PDF.getDescription());
+    }
+
+    wConnectionMappings.clearAll(false);
+    if (input.getConnectionMappings() != null) {
+      for (ReportConnectionMapping mapping : input.getConnectionMappings()) {
+        if (mapping == null) {
+          continue;
+        }
+        TableItem item = new TableItem(wConnectionMappings.table, SWT.NONE);
+        item.setText(1, Const.NVL(mapping.getJndiName(), ""));
+        item.setText(2, Const.NVL(mapping.getHopConnectionName(), ""));
+      }
+    }
+    wConnectionMappings.removeEmptyRows();
+    wConnectionMappings.setRowNums();
+    wConnectionMappings.optWidth(true);
 
     wParameters.clearAll(false);
     if (input.getParameters() != null) {
@@ -298,10 +401,27 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
         item.setText(2, Const.NVL(parameter.getFieldName(), ""));
       }
     }
+    wParameters.removeEmptyRows();
     wParameters.setRowNums();
     wParameters.optWidth(true);
 
+    setFlags();
     input.setChanged(changed);
+  }
+
+  private String[] loadHopConnectionNames() {
+    try {
+      if (metadataProvider != null) {
+        List<String> names = metadataProvider.getSerializer(DatabaseMeta.class).listObjectNames();
+        if (names != null && !names.isEmpty()) {
+          Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
+          return names.toArray(new String[0]);
+        }
+      }
+    } catch (Exception e) {
+      // fall through — empty combo still allows free-typed connection names
+    }
+    return new String[0];
   }
 
   private void setFlags() {
@@ -317,7 +437,16 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
       return;
     }
     try {
-      IRowMeta rowMeta = pipelineMeta.getPrevTransformFields(variables, transformName);
+      String nameForFields =
+          !Utils.isEmpty(transformName)
+              ? transformName
+              : (input.getParentTransformMeta() != null
+                  ? input.getParentTransformMeta().getName()
+                  : null);
+      IRowMeta rowMeta =
+          !Utils.isEmpty(nameForFields)
+              ? pipelineMeta.getPrevTransformFields(variables, nameForFields)
+              : null;
       String[] fieldNames = rowMeta != null ? rowMeta.getFieldNames() : new String[0];
       wInputField.setItems(fieldNames);
       wOutputField.setItems(fieldNames);
@@ -352,9 +481,23 @@ public class PentahoReportingOutputDialog extends BaseTransformDialog {
     input.setInputFile(wInputFile.getText());
     input.setOutputFile(wOutputFile.getText());
     input.setCreateParentFolder(wCreateParentFolder.getSelection());
+    input.setUseSameNameHopConnections(wUseSameNameHopConnections.getSelection());
+    input.setFailIfUnboundJndi(wFailIfUnboundJndi.getSelection());
 
     ProcessorType type = ProcessorType.getByDescription(wProcessor.getText());
     input.setProcessorType(type != null ? type : ProcessorType.PDF);
+
+    List<ReportConnectionMapping> connectionMappings = new ArrayList<>();
+    int mappingCount = wConnectionMappings.nrNonEmpty();
+    for (int i = 0; i < mappingCount; i++) {
+      TableItem item = wConnectionMappings.getNonEmpty(i);
+      String jndi = item.getText(1);
+      String hop = item.getText(2);
+      if (!Utils.isEmpty(jndi) && !Utils.isEmpty(hop)) {
+        connectionMappings.add(new ReportConnectionMapping(jndi, hop));
+      }
+    }
+    input.setConnectionMappings(connectionMappings);
 
     List<ReportParameter> parameters = new ArrayList<>();
     int count = wParameters.nrNonEmpty();

@@ -59,16 +59,35 @@ export NEXUS_USER=... NEXUS_PASSWORD=...
 
 ## Appear in Hop 2.19 marketplace
 
-Marketplace **UI/CLI requires Hop 2.19+**. Users:
+Marketplace **UI/CLI requires Hop 2.19+**.
+
+### CLI (verified)
 
 ```bash
-# Import Data Hopper community repo (same id as hop-datavault — merges plugins list)
+# Once: register the Data Hopper community repo
 ./hop marketplace repo import hop-marketplace-repo.yaml
-# or from GitHub raw URL after push
+# or after push:
+# ./hop marketplace repo import \
+#   https://raw.githubusercontent.com/ProjectDataHopper/hop-pentaho-reporting/refs/heads/main/hop-marketplace-repo.yaml
 
 ./hop marketplace query | grep -i reporting
 ./hop marketplace install hop-pentaho-reporting-output
 # Restart Hop GUI / hop-server
+```
+
+Example successful install:
+
+```text
+$ sh hop marketplace install hop-pentaho-reporting-output
+Resolved hop-pentaho-reporting-output → org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT (prefer repo 'data-hopper-community')
+2026/08/01 00:36:11 - Marketplace - Downloading org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT from https://repository.data-hopper.com/repository/hop-community-plugins/org/projectdatahopper/hop/hop-pentaho-reporting-output/1.0.0-SNAPSHOT/hop-pentaho-reporting-output-1.0.0-20260731.223403-2.zip
+Downloading: org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT (65.8MB)
+  [████████████████████████] 100%  9.4MB/s - 65.8MB of 65.8MB
+2026/08/01 00:36:20 - Marketplace - Downloaded …/plugins/.staging/.download/hop-pentaho-reporting-output-1.0.0-SNAPSHOT.zip (68990924 bytes)
+  Unpacking...
+  Installing files...
+2026/08/01 00:36:20 - Marketplace - Installed org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT. Restart Hop to load the plugin.
+Plugin org.projectdatahopper.hop:hop-pentaho-reporting-output:1.0.0-SNAPSHOT installed under <HOP_HOME> from repo 'data-hopper-community'. Restart Hop to load it.
 ```
 
 If the repo `data-hopper-community` already exists (from hop-datavault), re-import updates metadata; with **`browse: true`**, the new zip is also discovered live from Nexus.
@@ -79,7 +98,9 @@ If the repo `data-hopper-community` already exists (from hop-datavault), re-impo
 2. Import `hop-marketplace-repo.yaml` or add URL  
    `https://repository.data-hopper.com/repository/hop-community-plugins/`  
    with browse enabled  
-3. Find **Pentaho Reporting Output** → Install → restart
+3. Find **Pentaho Reporting Output** → Install → restart  
+
+After restart: pipeline palette **Output** → **Pentaho Reporting Output**.
 
 ## Note on licenses
 

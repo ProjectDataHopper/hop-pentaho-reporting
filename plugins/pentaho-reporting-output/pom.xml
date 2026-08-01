@@ -37,10 +37,21 @@
       <artifactId>lombok</artifactId>
     </dependency>
 
-    <!-- LGPL classic engine (install with scripts/vendor-reporting-libs.sh) -->
+    <!-- LGPL classic engine (install with scripts/vendor-reporting-libs.sh / Nexus) -->
     <dependency>
       <groupId>org.pentaho.reporting.engine</groupId>
       <artifactId>classic-core</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <!--
+      Chart samples use legacy-chart elements + JFreeChart expressions.
+      Without this module, PDF export succeeds but chart areas are blank.
+      Prefer matching engine line from pentaho-reporting-lgpl; laptop fallback:
+      install PDI's legacy-charts jar (see scripts/vendor-reporting-libs.sh).
+    -->
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>legacy-charts</artifactId>
       <version>${pentaho-reporting.version}</version>
     </dependency>
     <dependency>
@@ -62,6 +73,17 @@
       <groupId>org.pentaho.reporting.library</groupId>
       <artifactId>librepository</artifactId>
       <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <!-- JFreeChart stack used by legacy-charts (not always pulled transitively) -->
+    <dependency>
+      <groupId>jfree</groupId>
+      <artifactId>jfreechart</artifactId>
+      <version>${jfreechart.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>jfree</groupId>
+      <artifactId>jcommon</artifactId>
+      <version>${jcommon.version}</version>
     </dependency>
   </dependencies>
 

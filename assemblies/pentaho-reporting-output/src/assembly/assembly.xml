@@ -43,6 +43,13 @@
       Reporting engine + its transitive jars (classic-core, lib*, POI, …).
       Resolved from Maven (e.g. pentaho-reporting-lgpl Nexus after the engine job).
       Hop and Lombok stay out — Hop already provides those.
+
+      IMPORTANT: HopURLClassLoader is child-first. Shipping jars that Hop already
+      has in lib/core (especially commons-vfs2) loads a second copy of those
+      classes. Calling HopVfs.getFileObject() then fails with LinkageError
+      ("different Class objects for the type org.apache.commons.vfs2.FileObject").
+      Exclude every library that appears on Hop's app classpath and is used in
+      Hop API signatures or shared logging.
     -->
     <dependencySet>
       <useProjectArtifact>false</useProjectArtifact>
@@ -54,6 +61,23 @@
         <exclude>org.apache.hop:*</exclude>
         <exclude>org.projectlombok:*</exclude>
         <exclude>io.smallrye:*</exclude>
+        <!-- Hop lib/core — do not ship duplicates (classloader isolation) -->
+        <exclude>org.apache.commons:commons-vfs2</exclude>
+        <exclude>org.apache.commons:commons-io</exclude>
+        <exclude>org.apache.commons:commons-lang3</exclude>
+        <exclude>org.apache.commons:commons-logging</exclude>
+        <exclude>org.apache.commons:commons-codec</exclude>
+        <exclude>org.apache.commons:commons-compress</exclude>
+        <exclude>commons-logging:commons-logging</exclude>
+        <exclude>commons-codec:commons-codec</exclude>
+        <exclude>commons-io:commons-io</exclude>
+        <exclude>org.slf4j:*</exclude>
+        <exclude>com.google.guava:guava</exclude>
+        <exclude>com.google.guava:failureaccess</exclude>
+        <exclude>com.google.guava:listenablefuture</exclude>
+        <exclude>com.google.code.findbugs:jsr305</exclude>
+        <exclude>org.apache.httpcomponents:httpclient</exclude>
+        <exclude>org.apache.httpcomponents:httpcore</exclude>
       </excludes>
     </dependencySet>
   </dependencySets>
@@ -61,6 +85,7 @@
   <!--
     Optional extra jars from a flat folder (bootstrap when Maven does not have
     the full engine tree yet). Empty folder is fine.
+    Same Hop-provided libraries must not be reintroduced via this folder.
   -->
   <fileSets>
     <fileSet>
@@ -69,6 +94,48 @@
       <includes>
         <include>*.jar</include>
       </includes>
+      <excludes>
+        <!-- Hop lib/core (classloader isolation) -->
+        <exclude>commons-vfs2*.jar</exclude>
+        <exclude>commons-io*.jar</exclude>
+        <exclude>commons-lang3*.jar</exclude>
+        <exclude>commons-logging*.jar</exclude>
+        <exclude>commons-codec*.jar</exclude>
+        <exclude>commons-compress*.jar</exclude>
+        <exclude>slf4j-*.jar</exclude>
+        <exclude>guava-*.jar</exclude>
+        <exclude>failureaccess-*.jar</exclude>
+        <exclude>listenablefuture-*.jar</exclude>
+        <exclude>jsr305-*.jar</exclude>
+        <exclude>httpclient-*.jar</exclude>
+        <exclude>httpcore-*.jar</exclude>
+        <!--
+          Engine jars come from the Maven dependencySet (classic-core + transitives).
+          Do not also copy them from third-party/ or you get dual classic-core
+          (e.g. 9.4 vendor + 10.1 Maven) on the plugin classloader.
+        -->
+        <exclude>classic-*.jar</exclude>
+        <exclude>libbase-*.jar</exclude>
+        <exclude>libdocbundle-*.jar</exclude>
+        <exclude>libfonts-*.jar</exclude>
+        <exclude>libformat-*.jar</exclude>
+        <exclude>libformula-*.jar</exclude>
+        <exclude>libloader-*.jar</exclude>
+        <exclude>libpixie-*.jar</exclude>
+        <exclude>librepository-*.jar</exclude>
+        <exclude>libserializer-*.jar</exclude>
+        <exclude>libsparkline-*.jar</exclude>
+        <exclude>libswing-*.jar</exclude>
+        <exclude>libxml-*.jar</exclude>
+        <exclude>flute-*.jar</exclude>
+        <!--
+          legacy-charts comes from the Maven dependencySet (same version as classic-core).
+          Exclude vendor copy so a 9.4 third-party jar is not dual-shipped next to 10.1.
+        -->
+        <exclude>legacy-charts-*.jar</exclude>
+        <exclude>jfreechart-*.jar</exclude>
+        <exclude>jcommon-*.jar</exclude>
+      </excludes>
     </fileSet>
   </fileSets>
 </assembly>

@@ -109,6 +109,38 @@ public class PentahoReportingOutputMeta
       injectionKeyDescription = "PentahoReportingOutputMeta.Injection.Parameter")
   private List<ReportParameter> parameters = new ArrayList<>();
 
+  /**
+   * Explicit JNDI name → Hop RDBMS connection mappings for report SQL data
+   * factories that still reference JNDI (typical for PRD/PDI designs).
+   */
+  @HopMetadataProperty(
+      key = "connection_mapping",
+      groupKey = "connection_mappings",
+      injectionKey = "CONNECTION_MAPPING",
+      injectionGroupKey = "CONNECTION_MAPPINGS",
+      injectionKeyDescription = "PentahoReportingOutputMeta.Injection.ConnectionMapping")
+  private List<ReportConnectionMapping> connectionMappings = new ArrayList<>();
+
+  /**
+   * When true (default), a report JNDI name that matches a Hop connection name
+   * is bound automatically without an explicit mapping row.
+   */
+  @HopMetadataProperty(
+      key = "use_same_name_hop_connections",
+      injectionKey = "USE_SAME_NAME_HOP_CONNECTIONS",
+      injectionKeyDescription = "PentahoReportingOutputMeta.Injection.UseSameNameHopConnections")
+  private boolean useSameNameHopConnections = true;
+
+  /**
+   * When true (default), export fails if any JNDI datasource in the report
+   * cannot be resolved to a Hop connection.
+   */
+  @HopMetadataProperty(
+      key = "fail_if_unbound_jndi",
+      injectionKey = "FAIL_IF_UNBOUND_JNDI",
+      injectionKeyDescription = "PentahoReportingOutputMeta.Injection.FailIfUnboundJndi")
+  private boolean failIfUnboundJndi = true;
+
   public ProcessorType getProcessorType() {
     ProcessorType type = ProcessorType.getByCode(processorTypeCode);
     return type != null ? type : ProcessorType.PDF;
@@ -144,12 +176,30 @@ public class PentahoReportingOutputMeta
     this.parameters = list;
   }
 
+  /** Convenience view: JNDI name → Hop connection name. */
+  public Map<String, String> getConnectionMappingMap() {
+    Map<String, String> map = new HashMap<>();
+    if (connectionMappings != null) {
+      for (ReportConnectionMapping mapping : connectionMappings) {
+        if (mapping != null
+            && !Utils.isEmpty(mapping.getJndiName())
+            && !Utils.isEmpty(mapping.getHopConnectionName())) {
+          map.put(mapping.getJndiName(), mapping.getHopConnectionName());
+        }
+      }
+    }
+    return map;
+  }
+
   @Override
   public void setDefault() {
     useValuesFromFields = true;
     createParentFolder = false;
     processorTypeCode = ProcessorType.PDF.getCode();
     parameters = new ArrayList<>();
+    connectionMappings = new ArrayList<>();
+    useSameNameHopConnections = true;
+    failIfUnboundJndi = true;
   }
 
   @Override
