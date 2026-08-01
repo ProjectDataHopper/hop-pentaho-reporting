@@ -88,6 +88,18 @@
     Same Hop-provided libraries must not be reintroduced via this folder.
   -->
   <fileSets>
+    <!--
+      Chart samples need legacy-charts on the plugin classpath. This module is
+      not always published to pentaho-reporting-lgpl; ship the LGPL seed jar
+      committed under jenkins/seed-jars/ so marketplace CI does not depend on it.
+    -->
+    <fileSet>
+      <directory>${maven.multiModuleProjectDirectory}/jenkins/seed-jars</directory>
+      <outputDirectory>plugins/transforms/pentaho-reporting-output/lib</outputDirectory>
+      <includes>
+        <include>legacy-charts-*.jar</include>
+      </includes>
+    </fileSet>
     <fileSet>
       <directory>${reporting.vendor.lib.dir}</directory>
       <outputDirectory>plugins/transforms/pentaho-reporting-output/lib</outputDirectory>
@@ -128,10 +140,7 @@
         <exclude>libswing-*.jar</exclude>
         <exclude>libxml-*.jar</exclude>
         <exclude>flute-*.jar</exclude>
-        <!--
-          legacy-charts comes from the Maven dependencySet (same version as classic-core).
-          Exclude vendor copy so a 9.4 third-party jar is not dual-shipped next to 10.1.
-        -->
+        <!-- Seed/Maven already provide these; avoid dual copies from vendor folder -->
         <exclude>legacy-charts-*.jar</exclude>
         <exclude>jfreechart-*.jar</exclude>
         <exclude>jcommon-*.jar</exclude>

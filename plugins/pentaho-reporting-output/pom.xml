@@ -44,16 +44,11 @@
       <version>${pentaho-reporting.version}</version>
     </dependency>
     <!--
-      Chart samples use legacy-chart elements + JFreeChart expressions.
-      Without this module, PDF export succeeds but chart areas are blank.
-      Prefer matching engine line from pentaho-reporting-lgpl; laptop fallback:
-      install PDI's legacy-charts jar (see scripts/vendor-reporting-libs.sh).
+      legacy-charts is NOT a Maven compile dependency: it is not always published
+      on pentaho-reporting-lgpl yet, and our transform code does not compile against
+      it. Chart support is shipped by packaging the seed jar into plugin lib/
+      (see assemblies/.../assembly.xml + jenkins/seed-jars/legacy-charts-*.jar).
     -->
-    <dependency>
-      <groupId>org.pentaho.reporting.engine</groupId>
-      <artifactId>legacy-charts</artifactId>
-      <version>${pentaho-reporting.version}</version>
-    </dependency>
     <dependency>
       <groupId>org.pentaho.reporting.library</groupId>
       <artifactId>libbase</artifactId>

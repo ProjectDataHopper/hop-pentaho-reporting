@@ -93,6 +93,12 @@ pipeline {
             echo "  2) Put engine jars in third-party/pentaho-reporting-lib/ (vendor script)."
             exit 1
           fi
+          # Charts: seed jar is packaged by assembly (no Maven resolve required)
+          if ls jenkins/seed-jars/legacy-charts-*.jar >/dev/null 2>&1; then
+            echo "OK: chart seed jar present ($(ls jenkins/seed-jars/legacy-charts-*.jar))"
+          else
+            echo "WARNING: jenkins/seed-jars/legacy-charts-*.jar missing — chart samples will be blank"
+          fi
         '''
       }
     }

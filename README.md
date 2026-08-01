@@ -163,20 +163,15 @@ Reports that already use driver/URL connections in the `.prpt` are left unchange
 
 PRD chart samples use **legacy-chart** elements (`legacy-charts` module + JFreeChart).
 The plugin zip must include `legacy-charts`, `jfreechart`, and `jcommon` under
-`lib/` (wired as Maven dependencies). Without them, export still produces a
-valid but **blank** PDF (≈900 bytes).
+`lib/`. Without them, export still produces a valid but **blank** PDF (≈900 bytes).
 
-If `legacy-charts` is missing from Maven/Nexus, vendor it from PDI CE:
+| Jar | How it gets into the zip |
+|-----|---------------------------|
+| `jfreechart` / `jcommon` | Maven Central (plugin dependencies) |
+| `legacy-charts` | Committed seed: `jenkins/seed-jars/legacy-charts-*.jar` (assembly) — **not** a hard Maven dep, so marketplace CI does not need it on Nexus |
 
-```bash
-scripts/vendor-reporting-libs.sh \
-  /path/to/data-integration/plugins/pentaho-reporting-plugins/lib
-# then re-package; or install the jar into m2 as
-# org.pentaho.reporting.engine:legacy-charts:${pentaho-reporting.version}
-```
-
-Jenkins engine job: enable **DEPLOY_SAFE_EXTENSIONS** to publish `legacy-charts`
-on the LGPL line to Nexus.
+Optional later: engine job **DEPLOY_SAFE_EXTENSIONS** can publish a matching
+`legacy-charts` to `pentaho-reporting-lgpl`; the seed remains the reliable path.
 
 ## Planned
 
