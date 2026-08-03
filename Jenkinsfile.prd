@@ -631,10 +631,8 @@ EOF
             echo "license_line=LGPL-2.1"
             echo "forbidden=10.2+,BSL"
           } | tee "${WORKSPACE}/BUILD-INFO.txt"
-          # Place next to zip for publish script
-          if [ -f "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip" ]; then
-            cp -f "${WORKSPACE}/BUILD-INFO.txt" "${WORKSPACE}/BUILD-INFO.txt"
-          fi
+          echo "Wrote BUILD-INFO.txt"
+          ls -la "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip" "${WORKSPACE}/BUILD-INFO.txt" || true
         '''
         archiveArtifacts artifacts: 'BUILD-INFO.txt,prd-ce-*.zip', fingerprint: true, allowEmptyArchive: true
       }
