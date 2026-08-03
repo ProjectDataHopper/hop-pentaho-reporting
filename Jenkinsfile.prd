@@ -565,16 +565,29 @@ EOF
             -Dpentaho-reporting.version=10.1.0.0-SNAPSHOT \
             -Dcopyright.year="${COPYRIGHT_YEAR}" \
             -Dproject.version="${CLIENT_VERSION}"
-          ZIP=$(ls "${WORKSPACE}/jenkins/prd-slim/target/prd-ce-${CLIENT_VERSION}.zip" 2>/dev/null || true)
-          if [ -z "${ZIP}" ] || [ ! -f "${ZIP}" ]; then
+          ZIP="${WORKSPACE}/jenkins/prd-slim/target/prd-ce-${CLIENT_VERSION}.zip"
+          if [ ! -f "${ZIP}" ]; then
             echo "ERROR: slim zip not produced"
             ls -la "${WORKSPACE}/jenkins/prd-slim/target/" || true
             exit 1
           fi
-          # Fix shell script modes inside is not needed for zip; ensure scripts present
-          unzip -l "${ZIP}" | head -40
-          echo "Slim zip OK: ${ZIP} ($(du -h "${ZIP}" | awk '{print $1}'))"
+          # Publish path for later stages (before optional listing)
           cp -f "${ZIP}" "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip"
+          echo "Slim zip OK: ${ZIP} ($(du -h "${ZIP}" | awk '{print $1}'))"
+          # Agent may not have unzip — use jar (JDK) to list a few entries
+          if command -v jar >/dev/null 2>&1; then
+            jar tf "${ZIP}" | head -40 || true
+          elif command -v unzip >/dev/null 2>&1; then
+            unzip -l "${ZIP}" | head -40 || true
+          else
+            echo "(no jar/unzip to list archive contents; zip file present)"
+          fi
+          # Sanity: launcher.jar and report-designer.sh should be inside
+          if command -v jar >/dev/null 2>&1; then
+            CONTENTS="$(jar tf "${ZIP}")"
+            echo "${CONTENTS}" | grep -F 'launcher.jar' >/dev/null
+            echo "${CONTENTS}" | grep -F 'report-designer.sh' >/dev/null
+          fi
         '''
       }
     }
