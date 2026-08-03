@@ -158,6 +158,11 @@ publish the embedded POM and classic-core fails with:
 
 `Could not find artifact org.pentaho:pentaho-ce-jar-parent-pom:pom:9.2.0.1-364`
 
+**Local m2 cache:** `simple-jndi:1.0.13` is a **release** coordinate. Maven will
+keep a previously downloaded bad POM forever in the job workspace
+(`.m2/repository`) even after Nexus is fixed. The seed stage therefore
+**purges** that path and **`install-file`s** the flat POM into the job-local
+repo before classic-core runs.
 ---
 
 ## Slim assembly source

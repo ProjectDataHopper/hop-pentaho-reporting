@@ -347,11 +347,24 @@ pipeline {
 </project>
 EOF
           }
-          deploy_jar() {
+          # Install into the job-local m2 AND deploy to Nexus. Release versions
+          # (e.g. simple-jndi:1.0.13) are sticky in ~/.m2 — a previous bad POM
+          # (embedded Hitachi parent) will never be re-fetched without purge+install.
+          seed_jar() {
             local g="$1" a="$2" v="$3" f="$4"
             local pom="${SEEDTMP}/${a}-${v}.pom"
+            local gpath
+            gpath="$(echo "${g}" | tr '.' '/')"
             write_flat_pom "${g}" "${a}" "${v}" "${pom}"
-            echo "Seeding ${g}:${a}:${v} (flat POM)"
+            echo "Seeding ${g}:${a}:${v} (flat POM → local m2 + Nexus)"
+            # Drop any cached descriptor from earlier failed builds in this workspace
+            rm -rf "${MAVEN_REPO_LOCAL}/${gpath}/${a}/${v}"
+            rm -rf "${MAVEN_REPO_LOCAL}/${gpath}/${a}/${v}"-*.jar.lastUpdated 2>/dev/null || true
+            # Local first so later reactor stages never see a stale bad POM
+            mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+              org.apache.maven.plugins:maven-install-plugin:3.1.1:install-file \
+              -DgroupId="${g}" -DartifactId="${a}" -Dversion="${v}" \
+              -Dpackaging=jar -Dfile="${f}" -DpomFile="${pom}"
             mvn -B -s "${WORKSPACE}/ci-settings.xml" \
               org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
               -DgroupId="${g}" -DartifactId="${a}" -Dversion="${v}" \
@@ -359,20 +372,24 @@ EOF
               -DpomFile="${pom}" -DgeneratePom=false \
               -DrepositoryId="${NEXUS_SERVER_ID}" -Durl="${NEXUS_DEPLOY_URL}"
           }
-          deploy_jar pentaho simple-jndi 1.0.13 "${SEED}/simple-jndi-1.0.13.jar"
-          deploy_jar pentaho pentaho-application-launcher 10.1.0.0-SNAPSHOT \
+          seed_jar pentaho simple-jndi 1.0.13 "${SEED}/simple-jndi-1.0.13.jar"
+          seed_jar pentaho pentaho-application-launcher 10.1.0.0-SNAPSHOT \
             "${SEED}/pentaho-application-launcher.jar"
-          deploy_jar pentaho pentaho-versionchecker 10.1.0.0-SNAPSHOT \
+          seed_jar pentaho pentaho-versionchecker 10.1.0.0-SNAPSHOT \
             "${SEED}/pentaho-versionchecker-9.4.0.0-343.jar"
-          deploy_jar org.fife.ui rsyntaxtextarea 1.3.2 "${SEED}/rsyntaxtextarea-1.3.2.jar"
+          seed_jar org.fife.ui rsyntaxtextarea 1.3.2 "${SEED}/rsyntaxtextarea-1.3.2.jar"
           # bsh coordinate workaround (same as engine job)
           mvn -B -s "${WORKSPACE}/ci-settings.xml" \
             org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy \
             -Dartifact=org.apache-extras.beanshell:bsh:2.0b6:jar \
             -DoutputDirectory="${SEEDTMP}" || true
           if [ -f "${SEEDTMP}/bsh-2.0b6.jar" ]; then
-            deploy_jar org.apache-extras.beanshell bsh 2.1.1 "${SEEDTMP}/bsh-2.0b6.jar"
+            seed_jar org.apache-extras.beanshell bsh 2.1.1 "${SEEDTMP}/bsh-2.0b6.jar"
           fi
+          # Belt-and-suspenders: purge any leftover bad simple-jndi parent resolutions
+          rm -rf "${MAVEN_REPO_LOCAL}/org/pentaho/pentaho-ce-jar-parent-pom/9.2.0.1-364" || true
+          echo "Local simple-jndi POM after seed:"
+          cat "${MAVEN_REPO_LOCAL}/pentaho/simple-jndi/1.0.13/simple-jndi-1.0.13.pom" || true
         '''
       }
     }
