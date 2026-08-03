@@ -512,10 +512,10 @@ EOF
             set -euo pipefail
             TEST_FLAGS="-DskipTests"
             # 1) Install slim stub for reportdesigner-parser (constants only; avoids mondrian/pmd)
+            #    Must land in local m2 BEFORE designer build so reactor does not build the real module.
             mvn -B -s "${WORKSPACE}/ci-settings.xml" \
               -f "${WORKSPACE}/jenkins/prd-stubs/classic-extensions-reportdesigner-parser/pom.xml" \
-              clean install \
-              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+              clean install
             mvn -B -s "${WORKSPACE}/ci-settings.xml" \
               -f "${WORKSPACE}/jenkins/prd-stubs/classic-extensions-reportdesigner-parser/pom.xml" \
               deploy \
@@ -523,18 +523,31 @@ EOF
             # 2) Patch report-designer: legacy-charts + lang/log4j; exclude Mondrian action
             chmod +x "${WORKSPACE}/scripts/patch-slim-report-designer.sh"
             "${WORKSPACE}/scripts/patch-slim-report-designer.sh"
-            # 3) Build slim designer modules (no kettle/mondrian/pmd editors)
-            MODULES="designer/report-designer,designer/wizard-xul"
+            # 3) Build slim designer modules ONLY — do NOT use -am.
+            #    -am walks reportdesigner-parser -> mondrian/pmd and rebuilds those from source.
+            #    Engine jars + stub are already in local m2 from earlier stages.
+            #    Explicitly exclude highdeps engine modules if Maven still expands the reactor.
+            MODULES="designer"
+            MODULES="${MODULES},designer/report-designer,designer/wizard-xul"
             MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
             MODULES="${MODULES},designer/datasource-editor-xpath,designer/datasource-editor-external"
             MODULES="${MODULES},designer/datasource-editor-reflection,designer/datasource-editor-cda"
             MODULES="${MODULES},designer/report-designer-extension-legacy-charts"
             MODULES="${MODULES},designer/report-designer-extension-toc"
             MODULES="${MODULES},designer/report-designer-extension-wizard"
+            EXCL="!engine/extensions-mondrian,!engine/extensions-pmd"
+            EXCL="${EXCL},!engine/extensions-kettle,!engine/extensions-olap4j"
+            EXCL="${EXCL},!engine/extensions-pentaho-metadata,!engine/extensions-reportdesigner-parser"
+            EXCL="${EXCL},!engine/extensions-charting,!engine/extensions-docsupport"
+            EXCL="${EXCL},!engine/demo,!engine/testcases,!engine/tools"
+            EXCL="${EXCL},!assemblies,!designer/datasource-editor-jdbc,!designer/datasource-editor-kettle"
+            EXCL="${EXCL},!designer/datasource-editor-mondrian,!designer/datasource-editor-olap4j"
+            EXCL="${EXCL},!designer/datasource-editor-pmd,!designer/report-designer-extension-connectioneditor"
+            EXCL="${EXCL},!designer/report-designer-extension-pentaho"
             mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
               clean deploy ${TEST_FLAGS} \
               ${MAVEN_HITACHI_WORKAROUNDS} \
-              -pl "${MODULES}" -am \
+              -pl "${MODULES},${EXCL}" \
               -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
           '''
         }
