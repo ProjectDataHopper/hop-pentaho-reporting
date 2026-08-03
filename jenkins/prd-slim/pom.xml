@@ -122,6 +122,17 @@
       <artifactId>classic-extensions-drill-down</artifactId>
       <version>${pentaho-reporting.version}</version>
     </dependency>
+    <!-- slim stub (constants); full parser needs mondrian/pmd -->
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-reportdesigner-parser</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>legacy-charts</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.pentaho.reporting.engine</groupId>
       <artifactId>classic-extensions-sampledata</artifactId>

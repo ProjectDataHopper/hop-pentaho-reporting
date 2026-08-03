@@ -511,11 +511,19 @@ EOF
           sh '''
             set -euo pipefail
             TEST_FLAGS="-DskipTests"
-            # Drop highdeps from report-designer POM (external script; no python on agent)
-            chmod +x "${WORKSPACE}/scripts/strip-slim-designer-deps.sh"
-            "${WORKSPACE}/scripts/strip-slim-designer-deps.sh" \
-              designer/report-designer/pom.xml
-            # Modules without kettle/mondrian/pmd/connectioneditor/ext-pentaho
+            # 1) Install slim stub for reportdesigner-parser (constants only; avoids mondrian/pmd)
+            mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+              -f "${WORKSPACE}/jenkins/prd-stubs/classic-extensions-reportdesigner-parser/pom.xml" \
+              clean install \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+            mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+              -f "${WORKSPACE}/jenkins/prd-stubs/classic-extensions-reportdesigner-parser/pom.xml" \
+              deploy \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL} || true
+            # 2) Patch report-designer: legacy-charts + lang/log4j; exclude Mondrian action
+            chmod +x "${WORKSPACE}/scripts/patch-slim-report-designer.sh"
+            "${WORKSPACE}/scripts/patch-slim-report-designer.sh"
+            # 3) Build slim designer modules (no kettle/mondrian/pmd editors)
             MODULES="designer/report-designer,designer/wizard-xul"
             MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
             MODULES="${MODULES},designer/datasource-editor-xpath,designer/datasource-editor-external"
