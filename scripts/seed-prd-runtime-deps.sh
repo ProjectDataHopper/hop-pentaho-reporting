@@ -139,6 +139,12 @@ if [[ -f "${BBQ}" ]]; then
   deploy_jar barbecue barbecue 1.5-beta1 "${BBQ}"
 fi
 
+JCIFS="${SEED}/jcifs-1.3.3.jar"
+if [[ -f "${JCIFS}" ]]; then
+  require_file "${JCIFS}"
+  deploy_jar jcifs jcifs 1.3.3 "${JCIFS}"
+fi
+
 echo "==> Seed complete."
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "    (dry-run — nothing deployed)"

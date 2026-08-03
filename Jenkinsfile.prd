@@ -388,6 +388,10 @@ EOF
               -DoutputDirectory="${SEEDTMP}"
             seed_jar barbecue barbecue 1.5-beta1 "${SEEDTMP}/barbecue-1.5-beta1.jar"
           fi
+          # ext-legacy-charts (and others) need jcifs:jcifs:1.3.3 — removed from Central
+          if [ -f "${SEED}/jcifs-1.3.3.jar" ]; then
+            seed_jar jcifs jcifs 1.3.3 "${SEED}/jcifs-1.3.3.jar"
+          fi
           # bsh coordinate workaround (same as engine job)
           mvn -B -s "${WORKSPACE}/ci-settings.xml" \
             org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy \
