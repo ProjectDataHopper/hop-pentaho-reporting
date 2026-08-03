@@ -511,37 +511,43 @@ EOF
           sh '''
             set -euo pipefail
             TEST_FLAGS="-DskipTests"
-            # Drop hard deps that force mondrian/pmd/kettle (not in slim engine set)
-            # reportdesigner-parser = legacy .report XML only; .prpt does not need it
-            python3 - <<'PY'
-from pathlib import Path
-import re
-poms = [
-    Path("designer/report-designer/pom.xml"),
-]
-drop = {
-    "classic-extensions-reportdesigner-parser",
-    "classic-extensions-mondrian",
-    "classic-extensions-pmd",
-    "classic-extensions-kettle",
-    "classic-extensions-olap4j",
-}
-for pom in poms:
-    if not pom.exists():
-        continue
-    text = pom.read_text()
-    # remove dependency blocks whose artifactId is in drop
-    def repl(m):
-        block = m.group(0)
-        for a in drop:
-            if f"<artifactId>{a}</artifactId>" in block:
-                return ""
-        return block
-    new = re.sub(r"<dependency>.*?</dependency>", repl, text, flags=re.S)
-    if new != text:
-        pom.write_text(new)
-        print(f"Patched slim deps out of {pom}")
-PY
+            # Drop hard deps that force mondrian/pmd/kettle (not in slim engine set).
+            # reportdesigner-parser = legacy .report XML only; .prpt does not need it.
+            # NOTE: agent has no python3 — use awk only.
+            strip_slim_deps() {
+              local pom="$1"
+              local tmp
+              tmp="$(mktemp)"
+              awk '
+                BEGIN { indep=0; block="" }
+                /<dependency>/ {
+                  indep=1
+                  block=$0
+                  next
+                }
+                indep==1 {
+                  block=block ORS $0
+                  if ($0 ~ /<\/dependency>/) {
+                    if (block !~ /classic-extensions-reportdesigner-parser/ &&
+                        block !~ /classic-extensions-mondrian/ &&
+                        block !~ /classic-extensions-pmd/ &&
+                        block !~ /classic-extensions-kettle/ &&
+                        block !~ /classic-extensions-olap4j/) {
+                      print block
+                    } else {
+                      print "<!-- slim: stripped highdeps dependency -->" > "/dev/stderr"
+                    }
+                    indep=0
+                    block=""
+                  }
+                  next
+                }
+                { print }
+              ' "${pom}" > "${tmp}"
+              mv "${tmp}" "${pom}"
+              echo "Patched slim deps out of ${pom}"
+            }
+            strip_slim_deps designer/report-designer/pom.xml
             # Modules without kettle/mondrian/pmd/connectioneditor/ext-pentaho
             MODULES="designer/report-designer,designer/wizard-xul"
             MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
