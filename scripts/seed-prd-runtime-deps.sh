@@ -133,6 +133,12 @@ deploy_jar pentaho pentaho-application-launcher 10.1.0.0-SNAPSHOT "${LAUNCHER}"
 deploy_jar pentaho pentaho-versionchecker 10.1.0.0-SNAPSHOT "${VCHECK}"
 deploy_jar org.fife.ui rsyntaxtextarea 1.3.2 "${RSYNTAX}"
 
+BBQ="${SEED}/barbecue-1.5-beta1.jar"
+if [[ -f "${BBQ}" ]]; then
+  require_file "${BBQ}"
+  deploy_jar barbecue barbecue 1.5-beta1 "${BBQ}"
+fi
+
 echo "==> Seed complete."
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "    (dry-run — nothing deployed)"

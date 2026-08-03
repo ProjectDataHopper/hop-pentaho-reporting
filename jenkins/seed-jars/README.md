@@ -11,6 +11,8 @@ pipeline expects), but are required for a green build or full-featured plugin zi
 | `simple-jndi-1.0.10.jar` | Same bytes as 1.0.13 seed (provenance) | PDI CE |
 | `pentaho-application-launcher.jar` | PRD `launcher.jar` | PDI CE `launcher/launcher.jar` |
 | `pentaho-versionchecker-9.4.0.0-343.jar` | PRD startup version check GAV | PDI CE version-checker plugin |
+| `barbecue-1.5-beta1.jar` | `barbecue:barbecue:1.5-beta1` (classic-extensions; not on Central under that GAV) | PDI CE reporting lib / same as Central `net.sourceforge.barbecue` |
+| `avalon-framework-4.1.5.jar` | Optional seed; usually on Central as `avalon-framework:avalon-framework:4.1.5` | PDI CE reporting lib |
 
 ## rsyntaxtextarea
 
