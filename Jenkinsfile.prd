@@ -266,6 +266,17 @@ pipeline {
               changelog: true,
               poll: false
         }
+        // Workspace root is hop-pentaho-reporting (has its own pom.xml). Without an
+        // empty relativePath, Maven walks up and treats that POM as parent.
+        sh '''
+          set -euo pipefail
+          POM="${WORKSPACE}/pentaho-reporting/pom.xml"
+          if ! grep -q '<relativePath/>' "${POM}"; then
+            # Insert empty relativePath into the first <parent> block
+            sed -i '/<artifactId>pentaho-ce-jar-parent-pom<\\/artifactId>/a\\    <relativePath/>' "${POM}"
+            echo "Patched pentaho-reporting parent relativePath (empty)"
+          fi
+        '''
       }
     }
 
@@ -314,13 +325,38 @@ pipeline {
               exit 1
             fi
           done
+          # CRITICAL: do NOT use -DgeneratePom=true alone for jars that embed
+          # META-INF/maven/.../pom.xml — deploy-file publishes that embedded POM
+          # (Hitachi parents like 9.2.0.1-364 / 8.2 / 9.4 that are not on Nexus).
+          # Always attach an explicit flat POM with the desired GAV and no parent.
+          SEEDTMP="${WORKSPACE}/.seed-deps"
+          mkdir -p "${SEEDTMP}"
+          write_flat_pom() {
+            local g="$1" a="$2" v="$3" out="$4"
+            cat > "${out}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>${g}</groupId>
+  <artifactId>${a}</artifactId>
+  <version>${v}</version>
+  <packaging>jar</packaging>
+  <description>Data Hopper LGPL seed (flat POM; no Hitachi parent)</description>
+</project>
+EOF
+          }
           deploy_jar() {
             local g="$1" a="$2" v="$3" f="$4"
-            echo "Seeding ${g}:${a}:${v}"
+            local pom="${SEEDTMP}/${a}-${v}.pom"
+            write_flat_pom "${g}" "${a}" "${v}" "${pom}"
+            echo "Seeding ${g}:${a}:${v} (flat POM)"
             mvn -B -s "${WORKSPACE}/ci-settings.xml" \
               org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
               -DgroupId="${g}" -DartifactId="${a}" -Dversion="${v}" \
-              -Dpackaging=jar -Dfile="${f}" -DgeneratePom=true \
+              -Dpackaging=jar -Dfile="${f}" \
+              -DpomFile="${pom}" -DgeneratePom=false \
               -DrepositoryId="${NEXUS_SERVER_ID}" -Durl="${NEXUS_DEPLOY_URL}"
           }
           deploy_jar pentaho simple-jndi 1.0.13 "${SEED}/simple-jndi-1.0.13.jar"
@@ -330,8 +366,6 @@ pipeline {
             "${SEED}/pentaho-versionchecker-9.4.0.0-343.jar"
           deploy_jar org.fife.ui rsyntaxtextarea 1.3.2 "${SEED}/rsyntaxtextarea-1.3.2.jar"
           # bsh coordinate workaround (same as engine job)
-          SEEDTMP="${WORKSPACE}/.seed-deps"
-          mkdir -p "${SEEDTMP}"
           mvn -B -s "${WORKSPACE}/ci-settings.xml" \
             org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy \
             -Dartifact=org.apache-extras.beanshell:bsh:2.0b6:jar \

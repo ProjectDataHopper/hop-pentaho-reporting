@@ -48,3 +48,8 @@ Used by [`Jenkinsfile.prd`](../../Jenkinsfile.prd) and
 
 **Critical:** the engine job may have deployed an **empty** `simple-jndi` stub so
 tests resolve. PRD **must** overwrite it with the real jar before packaging.
+
+**Critical (POM):** CE jars embed Hitachi parent POMs (e.g. `9.2.0.1-364`).  
+Always deploy with a **flat** POM (`-DpomFile=... -DgeneratePom=false`).  
+Bare `-DgeneratePom=true` on a real CE jar publishes the embedded parent POM and
+breaks classic-core resolution.

@@ -151,6 +151,13 @@ Seed runtime jars only (real simple-jndi, launcher, versionchecker):
 | `pentaho-versionchecker-9.4.0.0-343.jar` | `pentaho:pentaho-versionchecker:10.1.0.0-SNAPSHOT` | Startup check |
 | `rsyntaxtextarea-1.3.2.jar` | `org.fife.ui:rsyntaxtextarea:1.3.2` | Shared with engine job |
 
+**Flat POMs only.** These jars embed Hitachi `parent` POMs (9.2 / 8.2 / 9.4)
+that are not on our Nexus. The pipeline deploys an explicit flat POM (`-DpomFile`
++ `-DgeneratePom=false`). Using bare `-DgeneratePom=true` makes deploy-file
+publish the embedded POM and classic-core fails with:
+
+`Could not find artifact org.pentaho:pentaho-ce-jar-parent-pom:pom:9.2.0.1-364`
+
 ---
 
 ## Slim assembly source

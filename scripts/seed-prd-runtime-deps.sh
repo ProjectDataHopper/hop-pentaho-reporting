@@ -4,6 +4,10 @@
 # Replaces the empty simple-jndi stub used by the engine CI job with a real jar,
 # and publishes launcher + versionchecker seeds so PRD can resolve/start.
 #
+# IMPORTANT: seed jars embed Hitachi parent POMs (e.g. 9.2.0.1-364). Those parents
+# are not on Nexus. We always deploy an explicit *flat* POM (no parent) so Maven
+# does not try to resolve them. Do not use bare -DgeneratePom=true on these jars.
+#
 # Usage:
 #   export NEXUS_USER=... NEXUS_PASSWORD=...
 #   ./scripts/seed-prd-runtime-deps.sh
@@ -24,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     --repo-id) NEXUS_REPO_ID="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "Unknown arg: $1" >&2; exit 2 ;;
@@ -32,6 +36,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 NEXUS_URL="${NEXUS_URL%/}/"
+TMPDIR_SEED="$(mktemp -d)"
+trap 'rm -rf "${TMPDIR_SEED}"' EXIT
 
 require_file() {
   local f="$1"
@@ -47,9 +53,28 @@ require_file() {
   fi
 }
 
+write_flat_pom() {
+  local g="$1" a="$2" v="$3" out="$4"
+  cat > "${out}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>${g}</groupId>
+  <artifactId>${a}</artifactId>
+  <version>${v}</version>
+  <packaging>jar</packaging>
+  <description>Data Hopper LGPL seed (flat POM; no Hitachi parent)</description>
+</project>
+EOF
+}
+
 deploy_jar() {
   local g="$1" a="$2" v="$3" f="$4"
-  echo "→ ${g}:${a}:${v}  from $(basename "${f}")"
+  local pom="${TMPDIR_SEED}/${a}-${v}.pom"
+  write_flat_pom "${g}" "${a}" "${v}" "${pom}"
+  echo "→ ${g}:${a}:${v}  from $(basename "${f}") (flat POM)"
   if [[ "${DRY_RUN}" -eq 1 ]]; then
     return 0
   fi
@@ -60,7 +85,8 @@ deploy_jar() {
     -Dversion="${v}" \
     -Dpackaging=jar \
     -Dfile="${f}" \
-    -DgeneratePom=true \
+    -DpomFile="${pom}" \
+    -DgeneratePom=false \
     -DrepositoryId="${NEXUS_REPO_ID}" \
     -Durl="${NEXUS_URL}"
 }
@@ -86,7 +112,7 @@ open(path, "w").write(f"""<?xml version="1.0" encoding="UTF-8"?>
 """)
 PY
   SETTINGS_ARGS=(-s "${TMP_SETTINGS}")
-  trap 'rm -f "${TMP_SETTINGS}"' EXIT
+  trap 'rm -rf "${TMPDIR_SEED}"; rm -f "${TMP_SETTINGS}"' EXIT
 fi
 
 SJ="${SEED}/simple-jndi-1.0.13.jar"
@@ -100,19 +126,11 @@ require_file "${VCHECK}"
 require_file "${RSYNTAX}"
 
 echo "==> Seeding PRD runtime deps to ${NEXUS_URL}"
-echo "    (overwrites empty simple-jndi stub if present)"
+echo "    (flat POMs — overwrites bad embedded-parent POMs if present)"
 
-# Real simple-jndi under the GAV classic-core / designer expect.
-# Content is the 1.0.10 CE jar re-coordinated as 1.0.13 (API-compatible for PRD).
 deploy_jar pentaho simple-jndi 1.0.13 "${SJ}"
-
-# Application launcher → assemblies rename to launcher.jar
 deploy_jar pentaho pentaho-application-launcher 10.1.0.0-SNAPSHOT "${LAUNCHER}"
-
-# Version checker (9.4 CE binary under 10.1 SNAPSHOT coord for resolution)
 deploy_jar pentaho pentaho-versionchecker 10.1.0.0-SNAPSHOT "${VCHECK}"
-
-# Keep rsyntaxtextarea honest (also done by engine job)
 deploy_jar org.fife.ui rsyntaxtextarea 1.3.2 "${RSYNTAX}"
 
 echo "==> Seed complete."
