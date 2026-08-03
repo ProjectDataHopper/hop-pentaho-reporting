@@ -88,6 +88,12 @@ Client version: stamp **`10.1.0.0-dh1`** (then `dh2`…) for redistributable dow
 
 Agent: ≥ **4 GB** heap (`MAVEN_OPTS`), **15+ GB** free disk for full-ce.
 
+### commons-xul note
+
+PRD only needs **`core` + `swing`** modules from `pentaho-commons-xul` @10.1  
+(`-pl core,swing -am`). Building the full reactor fails on GWT (`gwt-incubator`,
+`commons-gwt-widgets`). Do not use a full-reactor fallback.
+
 ---
 
 ## End-user install

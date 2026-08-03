@@ -485,17 +485,19 @@ EOF
               echo "ERROR: BSL commons-xul — wrong branch"
               exit 1
             fi
+            # Empty relativePath: workspace root is hop-pentaho-reporting (has a pom.xml)
+            if ! grep -q '<relativePath/>' pom.xml; then
+              sed -i '/<artifactId>pentaho-ce-jar-parent-pom<\\/artifactId>/a\\    <relativePath/>' pom.xml || true
+            fi
             find . -name pom.xml -print0 | xargs -0 sed -i 's/3\\.1\\.0-pentaho/3.1.0/g' || true
-            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
-            # core + swing only (skip gwt/swt if possible)
+            TEST_FLAGS="-DskipTests"
+            # Module dirs on 10.1 are core/swing/html/gwt/swt — NOT pentaho-xul-*.
+            # Do NOT fall back to a full reactor: gwt needs commons-gwt-widgets + gwt-incubator.
+            # PRD desktop only needs commons-xul-core + commons-xul-swing (html is fine if pulled by -am).
             mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
               clean deploy ${TEST_FLAGS} \
               ${MAVEN_HITACHI_WORKAROUNDS} \
-              -pl pentaho-xul-core,pentaho-xul-swing -am \
-              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL} \
-              || mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
-              clean deploy ${TEST_FLAGS} \
-              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl core,swing -am \
               -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
           '''
         }
