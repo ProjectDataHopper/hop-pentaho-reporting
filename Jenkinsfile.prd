@@ -571,22 +571,14 @@ EOF
             ls -la "${WORKSPACE}/jenkins/prd-slim/target/" || true
             exit 1
           fi
-          # Publish path for later stages (before optional listing)
+          # Publish path for later stages
           cp -f "${ZIP}" "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip"
           echo "Slim zip OK: ${ZIP} ($(du -h "${ZIP}" | awk '{print $1}'))"
-          # Agent may not have unzip — use jar (JDK) to list a few entries
+          # Sanity checks without dumping the whole archive (and without unzip)
           if command -v jar >/dev/null 2>&1; then
-            jar tf "${ZIP}" | head -40 || true
-          elif command -v unzip >/dev/null 2>&1; then
-            unzip -l "${ZIP}" | head -40 || true
-          else
-            echo "(no jar/unzip to list archive contents; zip file present)"
-          fi
-          # Sanity: launcher.jar and report-designer.sh should be inside
-          if command -v jar >/dev/null 2>&1; then
-            CONTENTS="$(jar tf "${ZIP}")"
-            echo "${CONTENTS}" | grep -F 'launcher.jar' >/dev/null
-            echo "${CONTENTS}" | grep -F 'report-designer.sh' >/dev/null
+            jar tf "${ZIP}" | grep -F 'launcher.jar' >/dev/null
+            jar tf "${ZIP}" | grep -F 'report-designer.sh' >/dev/null
+            echo "zip contains launcher.jar and report-designer.sh"
           fi
         '''
       }
