@@ -58,7 +58,7 @@ first (enough to author many `.prpt` files for Hop), then expand toward full CE.
 
 | Mode | Parameter | What you get | Missing |
 |------|-----------|--------------|---------|
-| **slim** (default) | `BUILD_MODE=slim` | Designer UI, charts, table/scriptable/xpath/external/reflection/CDA datasources, samples | JDBC connection UI, Kettle, Mondrian, PMD, OSGi/Hadoop |
+| **slim** (default) | `BUILD_MODE=slim` | Designer UI, charts, table/scriptable/xpath/external/reflection/CDA datasources, samples | JDBC connection UI, Kettle, Mondrian, PMD, OSGi/Hadoop, legacy `.report` XML parser (`reportdesigner-parser`) |
 | **full-ce** | `BUILD_MODE=full-ce` | Stock upstream `prd-ce` assembly | Requires kettle + suite SNAPSHOTs on Nexus — experimental until Phase 4 stack is green |
 
 Client version: stamp **`10.1.0.0-dh1`** (then `dh2`…) for redistributable downloads; use `*-SNAPSHOT` while iterating.

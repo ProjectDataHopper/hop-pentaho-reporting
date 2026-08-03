@@ -119,11 +119,6 @@
     </dependency>
     <dependency>
       <groupId>org.pentaho.reporting.engine</groupId>
-      <artifactId>classic-extensions-reportdesigner-parser</artifactId>
-      <version>${pentaho-reporting.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.pentaho.reporting.engine</groupId>
       <artifactId>classic-extensions-drill-down</artifactId>
       <version>${pentaho-reporting.version}</version>
     </dependency>

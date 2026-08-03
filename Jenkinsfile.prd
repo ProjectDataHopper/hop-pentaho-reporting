@@ -456,11 +456,14 @@ EOF
             set -euo pipefail
             # -DskipTests only: still compile tests so test-jar deps resolve in reactor
             TEST_FLAGS="-DskipTests"
-            # No kettle / mondrian / metadata highdeps
+            # Slim set only — do NOT include:
+            #   extensions-mondrian / olap4j / kettle / pentaho-metadata (suite SNAPSHOTs)
+            #   extensions-reportdesigner-parser (depends on mondrian+pmd; legacy .report XML only)
+            # Using -am would pull those via reportdesigner-parser if it were listed.
             mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
               clean deploy ${TEST_FLAGS} \
               ${MAVEN_HITACHI_WORKAROUNDS} \
-              -pl engine/extensions,engine/legacy-charts,engine/legacy-functions,engine/wizard-core,engine/extensions-toc,engine/extensions-xpath,engine/extensions-scripting,engine/extensions-drilldown,engine/extensions-sampledata,engine/extensions-reportdesigner-parser,engine/extensions-cda \
+              -pl engine/extensions,engine/legacy-charts,engine/legacy-functions,engine/wizard-core,engine/extensions-toc,engine/extensions-xpath,engine/extensions-scripting,engine/extensions-drilldown,engine/extensions-sampledata,engine/extensions-cda \
               -am \
               -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
           '''
