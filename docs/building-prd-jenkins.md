@@ -104,9 +104,16 @@ curl -fLO \
 
 unzip prd-ce-10.1.0.0-dh1.zip -d ~/tools
 cd ~/tools/report-designer
-./report-designer.sh    # Linux / macOS — needs JDK 11+
+chmod +x report-designer.sh set-pentaho-env.sh
+./report-designer.sh    # Linux / macOS — JDK 11+ (21 OK); use bash, not: sh report-designer.sh
 # report-designer.bat   # Windows
 ```
+
+**Run notes (slim build):**
+
+- Invoke with **`./report-designer.sh`** (shebang bash). `sh report-designer.sh` fails on `[[` under dash.
+- Logging uses **log4j2** (`log4j-jcl` + `log4j-1.2-api` in `lib/`).
+- Empty `plugins/` is created so the launcher classpath entry is valid.
 
 Layout:
 
