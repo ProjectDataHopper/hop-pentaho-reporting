@@ -508,7 +508,38 @@ EOF
         dir('pentaho-reporting') {
           sh '''
             set -euo pipefail
-            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            TEST_FLAGS="-DskipTests"
+            # Drop hard deps that force mondrian/pmd/kettle (not in slim engine set)
+            # reportdesigner-parser = legacy .report XML only; .prpt does not need it
+            python3 - <<'PY'
+from pathlib import Path
+import re
+poms = [
+    Path("designer/report-designer/pom.xml"),
+]
+drop = {
+    "classic-extensions-reportdesigner-parser",
+    "classic-extensions-mondrian",
+    "classic-extensions-pmd",
+    "classic-extensions-kettle",
+    "classic-extensions-olap4j",
+}
+for pom in poms:
+    if not pom.exists():
+        continue
+    text = pom.read_text()
+    # remove dependency blocks whose artifactId is in drop
+    def repl(m):
+        block = m.group(0)
+        for a in drop:
+            if f"<artifactId>{a}</artifactId>" in block:
+                return ""
+        return block
+    new = re.sub(r"<dependency>.*?</dependency>", repl, text, flags=re.S)
+    if new != text:
+        pom.write_text(new)
+        print(f"Patched slim deps out of {pom}")
+PY
             # Modules without kettle/mondrian/pmd/connectioneditor/ext-pentaho
             MODULES="designer/report-designer,designer/wizard-xul"
             MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
