@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Slim LGPL Pentaho Report Designer assembly (Hop companion).
+
+  Packages a runnable report-designer/ zip without full PDI / Mondrian / OSGi.
+  Expects designer + engine modules already installed in the local Maven repo
+  (Jenkinsfile.prd builds them first).
+
+  Datasources included: table, scriptable, xpath, external, reflection, CDA.
+  Datasources deferred (need kettle/mondrian stack): JDBC UI, Kettle, Mondrian, PMD.
+
+  Version is overridden by -Dprd.client.version=... on the command line.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>org.projectdatahopper.tools</groupId>
+  <artifactId>prd-ce-slim</artifactId>
+  <version>10.1.0.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>PRD CE Slim (LGPL 10.1 Hop companion)</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <prd.client.version>${project.version}</prd.client.version>
+    <pentaho-reporting.version>10.1.0.0-SNAPSHOT</pentaho-reporting.version>
+    <copyright.year>2024</copyright.year>
+    <stage.dir>${project.build.directory}/stage</stage.dir>
+    <stage.dir.designer>${stage.dir}/report-designer</stage.dir.designer>
+    <!-- Override on CLI: -Dprd.upstream.dir=/path/to/pentaho-reporting -->
+    <prd.upstream.dir>${project.basedir}/../../pentaho-reporting</prd.upstream.dir>
+    <prd.upstream.resources>${prd.upstream.dir}/assemblies/prd-ce/src/main/resources</prd.upstream.resources>
+    <prd.upstream.scripts>${prd.upstream.dir}/assemblies/prd-ce/src/main/resources-filtered</prd.upstream.scripts>
+  </properties>
+
+  <licenses>
+    <license>
+      <name>GNU Lesser General Public License, version 2.1</name>
+      <url>https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <dependencies>
+    <!-- Designer core + slim extensions -->
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>report-designer</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>wizard-xul</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-table</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-scriptable</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-xpath</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-external</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-reflection</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>datasource-editor-cda</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>ext-legacy-charts</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>ext-toc</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.designer</groupId>
+      <artifactId>ext-wizard</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+
+    <!-- Engine pieces commonly required at runtime -->
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-core</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-scripting</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-reportdesigner-parser</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-drill-down</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-sampledata</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-toc</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>classic-extensions-xpath</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>legacy-charts</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>legacy-functions</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.reporting.engine</groupId>
+      <artifactId>wizard-core</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+
+    <!-- Launch + JNDI -->
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>pentaho-application-launcher</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>simple-jndi</artifactId>
+      <version>1.0.13</version>
+    </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>pentaho-versionchecker</artifactId>
+      <version>${pentaho-reporting.version}</version>
+    </dependency>
+
+    <!-- Lightweight embedded DBs for samples -->
+    <dependency>
+      <groupId>org.hsqldb</groupId>
+      <artifactId>hsqldb</artifactId>
+      <version>2.3.2</version>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <version>1.4.196</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>copy-libs</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${stage.dir.designer}/lib</outputDirectory>
+              <includeScope>runtime</includeScope>
+              <excludeArtifactIds>pentaho-application-launcher,hsqldb,h2</excludeArtifactIds>
+            </configuration>
+          </execution>
+          <execution>
+            <id>copy-jdbc</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${stage.dir.designer}/lib/jdbc</outputDirectory>
+              <includeArtifactIds>hsqldb,h2</includeArtifactIds>
+            </configuration>
+          </execution>
+          <execution>
+            <id>copy-launcher</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>pentaho</groupId>
+                  <artifactId>pentaho-application-launcher</artifactId>
+                  <version>${pentaho-reporting.version}</version>
+                  <outputDirectory>${stage.dir.designer}</outputDirectory>
+                  <destFileName>launcher.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>copy-upstream-resources</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${stage.dir.designer}</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${prd.upstream.resources}/resource</directory>
+                  <filtering>false</filtering>
+                </resource>
+                <resource>
+                  <directory>${prd.upstream.scripts}</directory>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+              <delimiters>
+                <delimiter>${*}</delimiter>
+              </delimiters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>zip</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <finalName>prd-ce-${prd.client.version}</finalName>
+              <appendAssemblyId>false</appendAssemblyId>
+              <descriptors>
+                <descriptor>src/assembly/assembly.xml</descriptor>
+              </descriptors>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <repositories>
+    <repository>
+      <id>pentaho-reporting-lgpl</id>
+      <url>https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>true</enabled></snapshots>
+    </repository>
+  </repositories>
+</project>

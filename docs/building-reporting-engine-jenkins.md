@@ -77,9 +77,15 @@ For **Hop Reporting Output** you need the **runtime engine**, not Report Designe
 
 Those extensions are what force you into the rest of the Hitachi suite.
 
-### Full stack (later, optional)
+### Full stack / Report Designer (client download)
 
-Full `mvn clean install -Drelease` builds designer + OSGi and needs many more SNAPSHOTs. Only do this if you want PRD itself, not just Hop export.
+Full `mvn clean install -Drelease` builds designer + OSGi and needs many more SNAPSHOTs.
+
+**PRD client zip** is a separate pipeline — see
+**[building-prd-jenkins.md](building-prd-jenkins.md)** and root
+[`Jenkinsfile.prd`](../Jenkinsfile.prd). Default mode is a **slim** LGPL 10.1
+designer (no full PDI/Mondrian); full stock `prd-ce` is experimental until the
+suite stack is on Nexus.
 
 ---
 
@@ -346,9 +352,11 @@ mvn deploy:deploy-file \
 
 1. **`pentaho-maven-parent-poms-lgpl`** — rare, only when parent branch changes  
 2. **`pentaho-reporting-lgpl-engine`** — weekly or on manual trigger; libraries + classic-core (+ safe extensions)  
-3. **`hop-pentaho-reporting`** — builds the Hop plugin against Nexus  
+3. **`pentaho-reporting-lgpl-prd`** — Report Designer client zip ([`Jenkinsfile.prd`](../Jenkinsfile.prd))  
+4. **`hop-pentaho-reporting`** — builds the Hop plugin against Nexus  
 
-Job (2) is the one that replaces “we can’t fetch the libraries from Maven anymore.”
+Job (2) is the one that replaces “we can’t fetch the libraries from Maven anymore.”  
+Job (3) publishes the designer download — see [building-prd-jenkins.md](building-prd-jenkins.md).
 
 ---
 

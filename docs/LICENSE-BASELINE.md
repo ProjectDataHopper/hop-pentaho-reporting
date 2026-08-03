@@ -10,8 +10,19 @@ chosen baseline commits are locked in for source extraction.
 | Product | Pentaho Reporting classic engine |
 | Allowed line | **9.4.x / 10.0.x / 10.1.x** (LGPL-2.1) |
 | Currently vendored | **9.4.0.0-343** (from PDI CE plugin lib; LGPL verified on `origin/9.4`) |
+| Nexus preferred | **10.1.0.0-SNAPSHOT** from `pentaho-reporting-lgpl` |
 | License | **LGPL-2.1** |
 | Forbidden | 10.2.0+, 11.x, current `master` (**BSL 1.1**) |
+
+## Report Designer (client download)
+
+| Item | Value |
+|------|-------|
+| Product | Pentaho Report Designer CE (`prd-ce`) |
+| Allowed line | **10.1** (last LGPL) — same pin as engine |
+| Publish | Nexus `pentaho-reporting-lgpl` as `org.pentaho.reporting:prd-ce:{version}:zip` |
+| Build | [`Jenkinsfile.prd`](../Jenkinsfile.prd) / [building-prd-jenkins.md](building-prd-jenkins.md) |
+| Forbidden | 10.2+ BSL designer trees or prebuilt BSL EE/DE zips |
 
 Hitachi public Maven (`repo.orl.eng.hitachivantara.com`) currently serves HTML rather than jars.
 Install binaries with:

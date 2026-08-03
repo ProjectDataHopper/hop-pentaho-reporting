@@ -173,13 +173,43 @@ The plugin zip must include `legacy-charts`, `jfreechart`, and `jcommon` under
 Optional later: engine job **DEPLOY_SAFE_EXTENSIONS** can publish a matching
 `legacy-charts` to `pentaho-reporting-lgpl`; the seed remains the reliable path.
 
+## Report Designer (client download)
+
+To **author** `.prpt` files you need Pentaho Report Designer (PRD). The last
+**LGPL** line is **10.1** (10.2+ is BSL). We publish a client zip on the same
+Nexus repo as the libraries:
+
+| | |
+|--|--|
+| GAV | `org.pentaho.reporting:prd-ce:10.1.0.0-dh1:zip` |
+| Repo | `https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/` |
+| Build | [`Jenkinsfile.prd`](Jenkinsfile.prd) — see [docs/building-prd-jenkins.md](docs/building-prd-jenkins.md) |
+
+```bash
+# after the PRD Jenkins job has published:
+curl -fLO \
+  "https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/org/pentaho/reporting/prd-ce/10.1.0.0-dh1/prd-ce-10.1.0.0-dh1.zip"
+unzip prd-ce-10.1.0.0-dh1.zip -d ~/tools
+cd ~/tools/report-designer && ./report-designer.sh   # JDK 11+
+```
+
+Default CI mode is a **slim** Hop companion (layout/charts + several datasources;
+JDBC connection UI needs the fuller PDI stack). Manual re-host of an existing
+LGPL CE zip:
+
+```bash
+export NEXUS_USER=... NEXUS_PASSWORD=...
+./scripts/publish-prd-zip.sh /path/to/prd-ce.zip --version 10.1.0.0-dh1
+```
+
 ## Planned
 
-1. Optional bump to **10.1.x** LGPL when artifacts can be resolved cleanly
-2. “Get parameters / JNDI names from .prpt” in the dialog
-3. Optional simple-jndi file compatibility mode for PDI drop-in configs
-4. Integration tests and sample `.prpt` pipelines
-5. Mondrian/OLAP JNDI providers if needed
+1. Optional bump Hop plugin runtime to **10.1.x** LGPL when artifacts resolve cleanly
+2. Full PRD CE (JDBC UI + Kettle/Mondrian) once suite deps are on Nexus
+3. “Get parameters / JNDI names from .prpt” in the dialog
+4. Optional simple-jndi file compatibility mode for PDI drop-in configs
+5. Integration tests and sample `.prpt` pipelines
+6. Mondrian/OLAP JNDI providers if needed
 
 ## License baseline (do not break)
 
@@ -195,6 +225,10 @@ hop-pentaho-reporting/
   plugins/pentaho-reporting-output/   # transform jar
   assemblies/pentaho-reporting-output/  # installable zip
   samples/                            # LGPL .prpt samples from PRD CE
+  Jenkinsfile                         # engine → Nexus
+  Jenkinsfile.prd                     # Report Designer client zip → Nexus
+  jenkins/prd-slim/                   # slim PRD assembly
+  scripts/publish-prd-zip.sh          # manual PRD zip publish
 ```
 
 See [samples/README.md](samples/README.md) for report categories and re-import notes.

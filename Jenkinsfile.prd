@@ -1,0 +1,591 @@
+// Build LGPL Pentaho Report Designer (PRD) client zip and deploy to
+// Data Hopper Nexus next to the reporting libraries.
+//
+// Target: last LGPL line = branch 10.1 (never 10.2+ / BSL).
+// Default mode: "slim" Hop companion (no full PDI/Mondrian/OSGi).
+//
+// Jenkins setup (UI, once):
+//   1. New Item → Pipeline → OK  (name e.g. pentaho-reporting-lgpl-prd)
+//   2. Pipeline → Definition: "Pipeline script from SCM"
+//      - SCM: Git → this repo (hop-pentaho-reporting)
+//      - Script Path: Jenkinsfile.prd
+//   3. Credentials: same as engine job (default nexus-pentaho-reporting-lgpl)
+//   4. Tools: jdk-11, Maven 3.9.9 (match names below)
+//   5. Prefer: engine job has already published classic-core + parents
+//
+// Client download GAV:
+//   org.pentaho.reporting:prd-ce:<CLIENT_VERSION>:zip
+//   optional classifier "slim" when BUILD_MODE=slim
+
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+    timeout(time: 6, unit: 'HOURS')
+  }
+
+  parameters {
+    string(
+      name: 'REPORTING_BRANCH',
+      defaultValue: '10.1',
+      description: 'pentaho/pentaho-reporting branch (LGPL only: 9.4, 10.0, 10.1)'
+    )
+    string(
+      name: 'PARENTS_BRANCH',
+      defaultValue: '10.1',
+      description: 'pentaho/maven-parent-poms branch'
+    )
+    string(
+      name: 'XUL_BRANCH',
+      defaultValue: '10.1',
+      description: 'pentaho/pentaho-commons-xul branch'
+    )
+    choice(
+      name: 'BUILD_MODE',
+      choices: ['slim', 'full-ce'],
+      description: 'slim = Hop companion (no kettle/mondrian). full-ce = stock prd-ce (needs suite deps)'
+    )
+    string(
+      name: 'CLIENT_VERSION',
+      defaultValue: '10.1.0.0-dh1',
+      description: 'Version stamped on the published zip (use *-SNAPSHOT for CI iteration)'
+    )
+    string(
+      name: 'NEXUS_DEPLOY_URL',
+      defaultValue: 'https://repository.data-hopper.com/repository/pentaho-reporting-lgpl/',
+      description: 'Nexus hosted repo URL'
+    )
+    string(
+      name: 'NEXUS_SERVER_ID',
+      defaultValue: 'pentaho-reporting-lgpl',
+      description: 'Must match settings server id'
+    )
+    string(
+      name: 'NEXUS_CREDENTIALS_ID',
+      defaultValue: 'nexus-pentaho-reporting-lgpl',
+      description: 'Jenkins Username/Password credential for Nexus'
+    )
+    booleanParam(
+      name: 'SKIP_PARENT_POMS',
+      defaultValue: true,
+      description: 'Skip parent POM deploy if engine job already published them'
+    )
+    booleanParam(
+      name: 'SKIP_LIBRARIES',
+      defaultValue: false,
+      description: 'Skip libraries rebuild if already complete on Nexus (libformula-ui etc.)'
+    )
+    booleanParam(
+      name: 'SKIP_TESTS',
+      defaultValue: true,
+      description: 'Skip unit tests'
+    )
+    booleanParam(
+      name: 'SEED_RUNTIME_DEPS',
+      defaultValue: true,
+      description: 'Deploy real simple-jndi / launcher / versionchecker seeds'
+    )
+    booleanParam(
+      name: 'PUBLISH_ZIP',
+      defaultValue: true,
+      description: 'Deploy the client zip to Nexus'
+    )
+  }
+
+  environment {
+    MAVEN_OPTS = '-Xmx4g -Djava.awt.headless=true'
+    MAVEN_REPO_LOCAL = "${env.WORKSPACE}/.m2/repository"
+    REPORTING_BRANCH = "${params.REPORTING_BRANCH}"
+    PARENTS_BRANCH = "${params.PARENTS_BRANCH}"
+    XUL_BRANCH = "${params.XUL_BRANCH}"
+    BUILD_MODE = "${params.BUILD_MODE}"
+    CLIENT_VERSION = "${params.CLIENT_VERSION}"
+    NEXUS_DEPLOY_URL = "${params.NEXUS_DEPLOY_URL}"
+    NEXUS_SERVER_ID = "${params.NEXUS_SERVER_ID}"
+    SKIP_PARENT_POMS = "${params.SKIP_PARENT_POMS}"
+    SKIP_LIBRARIES = "${params.SKIP_LIBRARIES}"
+    SKIP_TESTS = "${params.SKIP_TESTS}"
+    SEED_RUNTIME_DEPS = "${params.SEED_RUNTIME_DEPS}"
+    PUBLISH_ZIP = "${params.PUBLISH_ZIP}"
+    MAVEN_HITACHI_WORKAROUNDS = '-Dbuild-helper-maven-plugin.version=3.1.0 -Dbeanshell.version=2.0b6'
+  }
+
+  tools {
+    jdk 'jdk-11'
+    maven 'Maven 3.9.9'
+  }
+
+  stages {
+    stage('Show toolchain') {
+      steps {
+        sh '''
+          set -euo pipefail
+          echo "JAVA_HOME=${JAVA_HOME:-}"
+          java -version
+          mvn -version
+          echo "BUILD_MODE=${BUILD_MODE} CLIENT_VERSION=${CLIENT_VERSION}"
+        '''
+      }
+    }
+
+    stage('Prepare Maven settings') {
+      steps {
+        withCredentials([usernamePassword(
+            credentialsId: "${params.NEXUS_CREDENTIALS_ID}",
+            usernameVariable: 'NEXUS_USER',
+            passwordVariable: 'NEXUS_PASS')]) {
+          script {
+            def xmlEscape = { String s ->
+              if (s == null) { return '' }
+              return s.replace('&', '&amp;')
+                  .replace('<', '&lt;')
+                  .replace('>', '&gt;')
+                  .replace('"', '&quot;')
+                  .replace("'", '&apos;')
+            }
+            def userXml = xmlEscape(env.NEXUS_USER)
+            def passXml = xmlEscape(env.NEXUS_PASS)
+            def serverId = xmlEscape(env.NEXUS_SERVER_ID)
+            def deployUrl = xmlEscape(env.NEXUS_DEPLOY_URL)
+            def localRepo = xmlEscape(env.MAVEN_REPO_LOCAL)
+            writeFile file: "${env.WORKSPACE}/ci-settings.xml", text: """\
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+  <localRepository>${localRepo}</localRepository>
+  <servers>
+    <server>
+      <id>${serverId}</id>
+      <username>${userXml}</username>
+      <password>${passXml}</password>
+    </server>
+  </servers>
+  <mirrors>
+    <mirror>
+      <id>block-hitachi-html</id>
+      <name>Do not use Hitachi pentaho-public HTML feed</name>
+      <url>https://repo.maven.apache.org/maven2</url>
+      <mirrorOf>pentaho-public,pentaho-public-plugins</mirrorOf>
+    </mirror>
+  </mirrors>
+  <profiles>
+    <profile>
+      <id>data-hopper</id>
+      <repositories>
+        <repository>
+          <id>central</id>
+          <url>https://repo.maven.apache.org/maven2</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+        <repository>
+          <id>${serverId}</id>
+          <url>${deployUrl}</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>central</id>
+          <url>https://repo.maven.apache.org/maven2</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+        <pluginRepository>
+          <id>${serverId}</id>
+          <url>${deployUrl}</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>data-hopper</activeProfile>
+  </activeProfiles>
+</settings>
+"""
+            echo "Wrote ci-settings.xml"
+          }
+        }
+      }
+    }
+
+    stage('Checkout pipeline SCM (seed jars)') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Checkout parent POMs') {
+      when { expression { return !params.SKIP_PARENT_POMS } }
+      steps {
+        dir('maven-parent-poms') {
+          deleteDir()
+          git branch: "${params.PARENTS_BRANCH}",
+              url: 'https://github.com/pentaho/maven-parent-poms.git',
+              changelog: false,
+              poll: false
+        }
+      }
+    }
+
+    stage('Deploy parent POMs') {
+      when { expression { return !params.SKIP_PARENT_POMS } }
+      steps {
+        dir('maven-parent-poms') {
+          sh '''
+            set -euo pipefail
+            find . -name pom.xml -print0 | xargs -0 sed -i 's/3\\.1\\.0-pentaho/3.1.0/g' || true
+            deploy_pom() {
+              mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+                org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
+                -Dfile="$1" -DpomFile="$1" -Dpackaging=pom \
+                -DrepositoryId="${NEXUS_SERVER_ID}" -Durl="${NEXUS_DEPLOY_URL}"
+            }
+            deploy_pom pom.xml
+            deploy_pom pentaho-ce-parent-pom/pom.xml
+            deploy_pom pentaho-ce-parent-pom/pentaho-ce-jar-parent-pom/pom.xml
+            deploy_pom pentaho-ce-parent-pom/pentaho-ce-jar-parent-pom/pentaho-ce-bundle-parent-pom/pom.xml
+          '''
+        }
+      }
+    }
+
+    stage('Checkout pentaho-reporting') {
+      steps {
+        dir('pentaho-reporting') {
+          deleteDir()
+          git branch: "${params.REPORTING_BRANCH}",
+              url: 'https://github.com/pentaho/pentaho-reporting.git',
+              changelog: true,
+              poll: false
+        }
+      }
+    }
+
+    stage('Refuse BSL / non-LGPL trees') {
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            head -20 LICENSE.txt LICENSE.TXT 2>/dev/null || true
+            if grep -qi "Business Source License" LICENSE.txt LICENSE.TXT 2>/dev/null; then
+              echo "ERROR: BSL license detected — refuse (use 9.4 / 10.0 / 10.1)."
+              exit 1
+            fi
+            if ! grep -qiE "LESSER GENERAL PUBLIC|LGPL" LICENSE.txt LICENSE.TXT 2>/dev/null; then
+              echo "ERROR: Expected LGPL in LICENSE — aborting."
+              exit 1
+            fi
+            case "${REPORTING_BRANCH}" in
+              10.2*|11.*|master|main)
+                echo "ERROR: Branch '${REPORTING_BRANCH}' is not an allowed LGPL pin."
+                exit 1
+                ;;
+            esac
+            echo "LGPL check OK sha=$(git rev-parse HEAD)"
+          '''
+        }
+      }
+    }
+
+    stage('Seed PRD runtime deps') {
+      when { expression { return params.SEED_RUNTIME_DEPS } }
+      steps {
+        sh '''
+          set -euo pipefail
+          SEED="${WORKSPACE}/jenkins/seed-jars"
+          if [ ! -f "${SEED}/simple-jndi-1.0.13.jar" ]; then
+            echo "ERROR: seed jars missing under jenkins/seed-jars"
+            ls -la "${SEED}" || true
+            exit 1
+          fi
+          # Guard: refuse empty stubs
+          for f in simple-jndi-1.0.13.jar pentaho-application-launcher.jar pentaho-versionchecker-9.4.0.0-343.jar; do
+            bytes=$(wc -c < "${SEED}/${f}")
+            if [ "${bytes}" -lt 1000 ]; then
+              echo "ERROR: ${f} looks like a stub (${bytes} bytes)"
+              exit 1
+            fi
+          done
+          deploy_jar() {
+            local g="$1" a="$2" v="$3" f="$4"
+            echo "Seeding ${g}:${a}:${v}"
+            mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+              org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
+              -DgroupId="${g}" -DartifactId="${a}" -Dversion="${v}" \
+              -Dpackaging=jar -Dfile="${f}" -DgeneratePom=true \
+              -DrepositoryId="${NEXUS_SERVER_ID}" -Durl="${NEXUS_DEPLOY_URL}"
+          }
+          deploy_jar pentaho simple-jndi 1.0.13 "${SEED}/simple-jndi-1.0.13.jar"
+          deploy_jar pentaho pentaho-application-launcher 10.1.0.0-SNAPSHOT \
+            "${SEED}/pentaho-application-launcher.jar"
+          deploy_jar pentaho pentaho-versionchecker 10.1.0.0-SNAPSHOT \
+            "${SEED}/pentaho-versionchecker-9.4.0.0-343.jar"
+          deploy_jar org.fife.ui rsyntaxtextarea 1.3.2 "${SEED}/rsyntaxtextarea-1.3.2.jar"
+          # bsh coordinate workaround (same as engine job)
+          SEEDTMP="${WORKSPACE}/.seed-deps"
+          mkdir -p "${SEEDTMP}"
+          mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+            org.apache.maven.plugins:maven-dependency-plugin:3.6.1:copy \
+            -Dartifact=org.apache-extras.beanshell:bsh:2.0b6:jar \
+            -DoutputDirectory="${SEEDTMP}" || true
+          if [ -f "${SEEDTMP}/bsh-2.0b6.jar" ]; then
+            deploy_jar org.apache-extras.beanshell bsh 2.1.1 "${SEEDTMP}/bsh-2.0b6.jar"
+          fi
+        '''
+      }
+    }
+
+    stage('Deploy libraries (lowdeps)') {
+      when { expression { return !params.SKIP_LIBRARIES } }
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            rm -rf "${MAVEN_REPO_LOCAL}/org/codehaus/mojo/build-helper-maven-plugin/3.1.0-pentaho" || true
+            # Includes libformula-ui + configuration-editor (needed by report-designer)
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl libraries -am -Plowdeps \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy classic-core') {
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl engine/core -am \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy designer engine modules') {
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # No kettle / mondrian / metadata highdeps
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl engine/extensions,engine/legacy-charts,engine/legacy-functions,engine/wizard-core,engine/extensions-toc,engine/extensions-xpath,engine/extensions-scripting,engine/extensions-drilldown,engine/extensions-sampledata,engine/extensions-reportdesigner-parser,engine/extensions-cda \
+              -am \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Build commons-xul (swing)') {
+      steps {
+        dir('pentaho-commons-xul') {
+          deleteDir()
+          git branch: "${params.XUL_BRANCH}",
+              url: 'https://github.com/pentaho/pentaho-commons-xul.git',
+              changelog: false,
+              poll: false
+          sh '''
+            set -euo pipefail
+            if grep -qi "Business Source License" LICENSE* 2>/dev/null; then
+              echo "ERROR: BSL commons-xul — wrong branch"
+              exit 1
+            fi
+            find . -name pom.xml -print0 | xargs -0 sed -i 's/3\\.1\\.0-pentaho/3.1.0/g' || true
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # core + swing only (skip gwt/swt if possible)
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl pentaho-xul-core,pentaho-xul-swing -am \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL} \
+              || mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy slim designer modules') {
+      when { expression { return params.BUILD_MODE == 'slim' } }
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # Modules without kettle/mondrian/pmd/connectioneditor/ext-pentaho
+            MODULES="designer/report-designer,designer/wizard-xul"
+            MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
+            MODULES="${MODULES},designer/datasource-editor-xpath,designer/datasource-editor-external"
+            MODULES="${MODULES},designer/datasource-editor-reflection,designer/datasource-editor-cda"
+            MODULES="${MODULES},designer/report-designer-extension-legacy-charts"
+            MODULES="${MODULES},designer/report-designer-extension-toc"
+            MODULES="${MODULES},designer/report-designer-extension-wizard"
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean deploy ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -pl "${MODULES}" -am \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Assemble slim PRD zip') {
+      when { expression { return params.BUILD_MODE == 'slim' } }
+      steps {
+        sh '''
+          set -euo pipefail
+          # Ensure scripts are executable after resource copy
+          export COPYRIGHT_YEAR=$(date +%Y)
+          mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+            -f "${WORKSPACE}/jenkins/prd-slim/pom.xml" \
+            clean package \
+            -Dprd.upstream.dir="${WORKSPACE}/pentaho-reporting" \
+            -Dprd.client.version="${CLIENT_VERSION}" \
+            -Dpentaho-reporting.version=10.1.0.0-SNAPSHOT \
+            -Dcopyright.year="${COPYRIGHT_YEAR}" \
+            -Dproject.version="${CLIENT_VERSION}"
+          ZIP=$(ls "${WORKSPACE}/jenkins/prd-slim/target/prd-ce-${CLIENT_VERSION}.zip" 2>/dev/null || true)
+          if [ -z "${ZIP}" ] || [ ! -f "${ZIP}" ]; then
+            echo "ERROR: slim zip not produced"
+            ls -la "${WORKSPACE}/jenkins/prd-slim/target/" || true
+            exit 1
+          fi
+          # Fix shell script modes inside is not needed for zip; ensure scripts present
+          unzip -l "${ZIP}" | head -40
+          echo "Slim zip OK: ${ZIP} ($(du -h "${ZIP}" | awk '{print $1}'))"
+          cp -f "${ZIP}" "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip"
+        '''
+      }
+    }
+
+    stage('Assemble full PRD CE (experimental)') {
+      when { expression { return params.BUILD_MODE == 'full-ce' } }
+      steps {
+        dir('pentaho-reporting') {
+          sh '''
+            set -euo pipefail
+            echo "WARNING: full-ce requires kettle/mondrian/metadata SNAPSHOTs on Nexus."
+            echo "If this fails, use BUILD_MODE=slim or seed the suite stack first."
+            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
+              clean package ${TEST_FLAGS} \
+              ${MAVEN_HITACHI_WORKAROUNDS} \
+              -Pdesigner \
+              -DaltDeploymentRepository=${NEXUS_SERVER_ID}::default::${NEXUS_DEPLOY_URL}
+            ZIP=$(find assemblies/prd-ce/target -name 'prd-ce-*.zip' ! -name '*osgi*' ! -name '*hadoop*' | head -1)
+            if [ -z "${ZIP}" ]; then
+              echo "ERROR: prd-ce zip not found"
+              find assemblies/prd-ce/target -type f | head -50 || true
+              exit 1
+            fi
+            cp -f "${ZIP}" "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip"
+          '''
+        }
+      }
+    }
+
+    stage('Provenance') {
+      steps {
+        sh '''
+          set -euo pipefail
+          {
+            echo "product=pentaho-report-designer"
+            echo "build_mode=${BUILD_MODE}"
+            echo "client_version=${CLIENT_VERSION}"
+            echo "reporting_branch=${REPORTING_BRANCH}"
+            if [ -d "${WORKSPACE}/pentaho-reporting/.git" ]; then
+              echo "reporting_sha=$(git -C "${WORKSPACE}/pentaho-reporting" rev-parse HEAD)"
+            fi
+            if [ -d "${WORKSPACE}/pentaho-commons-xul/.git" ]; then
+              echo "commons_xul_branch=${XUL_BRANCH}"
+              echo "commons_xul_sha=$(git -C "${WORKSPACE}/pentaho-commons-xul" rev-parse HEAD)"
+            fi
+            echo "nexus_url=${NEXUS_DEPLOY_URL}"
+            echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "license_line=LGPL-2.1"
+            echo "forbidden=10.2+,BSL"
+          } | tee "${WORKSPACE}/BUILD-INFO.txt"
+          # Place next to zip for publish script
+          if [ -f "${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip" ]; then
+            cp -f "${WORKSPACE}/BUILD-INFO.txt" "${WORKSPACE}/BUILD-INFO.txt"
+          fi
+        '''
+        archiveArtifacts artifacts: 'BUILD-INFO.txt,prd-ce-*.zip', fingerprint: true, allowEmptyArchive: true
+      }
+    }
+
+    stage('Publish zip to Nexus') {
+      when {
+        allOf {
+          expression { return params.PUBLISH_ZIP }
+          expression { return fileExists("prd-ce-${params.CLIENT_VERSION}.zip") }
+        }
+      }
+      steps {
+        sh '''
+          set -euo pipefail
+          ZIP="${WORKSPACE}/prd-ce-${CLIENT_VERSION}.zip"
+          # Deploy with ci-settings (credentials). Local helper:
+          #   ./scripts/publish-prd-zip.sh "$ZIP" --version "$CLIENT_VERSION"
+          mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+            org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
+            -DgroupId=org.pentaho.reporting \
+            -DartifactId=prd-ce \
+            -Dversion="${CLIENT_VERSION}" \
+            -Dpackaging=zip \
+            -Dfile="${ZIP}" \
+            -DgeneratePom=true \
+            -DrepositoryId="${NEXUS_SERVER_ID}" \
+            -Durl="${NEXUS_DEPLOY_URL}"
+          if [ -f "${WORKSPACE}/BUILD-INFO.txt" ]; then
+            mvn -B -s "${WORKSPACE}/ci-settings.xml" \
+              org.apache.maven.plugins:maven-deploy-plugin:3.1.3:deploy-file \
+              -DgroupId=org.pentaho.reporting \
+              -DartifactId=prd-ce \
+              -Dversion="${CLIENT_VERSION}" \
+              -Dpackaging=txt \
+              -Dclassifier=build-info \
+              -Dfile="${WORKSPACE}/BUILD-INFO.txt" \
+              -DgeneratePom=false \
+              -DrepositoryId="${NEXUS_SERVER_ID}" \
+              -Durl="${NEXUS_DEPLOY_URL}" || true
+          fi
+          echo "Published org.pentaho.reporting:prd-ce:${CLIENT_VERSION}:zip (mode=${BUILD_MODE})"
+          echo "URL: ${NEXUS_DEPLOY_URL}org/pentaho/reporting/prd-ce/${CLIENT_VERSION}/prd-ce-${CLIENT_VERSION}.zip"
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "PRD ${params.BUILD_MODE} build OK — client ${params.CLIENT_VERSION} → ${params.NEXUS_DEPLOY_URL}"
+    }
+    failure {
+      echo "PRD build failed. Typical causes: missing suite SNAPSHOTs (full-ce), commons-xul deps, empty simple-jndi stub, or designer module compile errors. Prefer BUILD_MODE=slim first."
+    }
+  }
+}
