@@ -511,43 +511,11 @@ EOF
           sh '''
             set -euo pipefail
             TEST_FLAGS="-DskipTests"
-            # Drop hard deps that force mondrian/pmd/kettle (not in slim engine set).
-            # reportdesigner-parser = legacy .report XML only; .prpt does not need it.
-            # NOTE: agent has no python3 — use awk only.
-            strip_slim_deps() {
-              local pom="$1"
-              local tmp
-              tmp="$(mktemp)"
-              awk '
-                BEGIN { indep=0; block="" }
-                /<dependency>/ {
-                  indep=1
-                  block=$0
-                  next
-                }
-                indep==1 {
-                  block=block ORS $0
-                  if ($0 ~ /<\/dependency>/) {
-                    if (block !~ /classic-extensions-reportdesigner-parser/ &&
-                        block !~ /classic-extensions-mondrian/ &&
-                        block !~ /classic-extensions-pmd/ &&
-                        block !~ /classic-extensions-kettle/ &&
-                        block !~ /classic-extensions-olap4j/) {
-                      print block
-                    } else {
-                      print "<!-- slim: stripped highdeps dependency -->" > "/dev/stderr"
-                    }
-                    indep=0
-                    block=""
-                  }
-                  next
-                }
-                { print }
-              ' "${pom}" > "${tmp}"
-              mv "${tmp}" "${pom}"
-              echo "Patched slim deps out of ${pom}"
-            }
-            strip_slim_deps designer/report-designer/pom.xml
+            # Drop highdeps from report-designer POM (script lives in pipeline repo;
+            # do not inline awk with \/ — Groovy parses sh '''...''' and rejects \).
+            chmod +x "${WORKSPACE}/scripts/strip-slim-designer-deps.sh"
+            "${WORKSPACE}/scripts/strip-slim-designer-deps.sh" \
+              designer/report-designer/pom.xml
             # Modules without kettle/mondrian/pmd/connectioneditor/ext-pentaho
             MODULES="designer/report-designer,designer/wizard-xul"
             MODULES="${MODULES},designer/datasource-editor-table,designer/datasource-editor-scriptable"
