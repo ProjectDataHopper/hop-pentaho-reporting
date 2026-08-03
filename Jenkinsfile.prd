@@ -419,6 +419,15 @@ EOF
           sh '''
             set -euo pipefail
             TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # Ensure release-seed POMs are the flat ones (not a stale workspace cache)
+            if [ -f "${MAVEN_REPO_LOCAL}/pentaho/simple-jndi/1.0.13/simple-jndi-1.0.13.pom" ]; then
+              if grep -q 'pentaho-ce-jar-parent-pom' \
+                   "${MAVEN_REPO_LOCAL}/pentaho/simple-jndi/1.0.13/simple-jndi-1.0.13.pom"; then
+                echo "ERROR: local simple-jndi POM still has Hitachi parent — re-run Seed stage"
+                cat "${MAVEN_REPO_LOCAL}/pentaho/simple-jndi/1.0.13/simple-jndi-1.0.13.pom"
+                exit 1
+              fi
+            fi
             mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
               clean deploy ${TEST_FLAGS} \
               ${MAVEN_HITACHI_WORKAROUNDS} \
