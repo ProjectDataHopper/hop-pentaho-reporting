@@ -47,6 +47,7 @@ Used by [`Jenkinsfile.prd`](../../Jenkinsfile.prd) and
 | `simple-jndi-1.0.13.jar` | `pentaho:simple-jndi:1.0.13` |
 | `pentaho-application-launcher.jar` | `pentaho:pentaho-application-launcher:10.1.0.0-SNAPSHOT` |
 | `pentaho-versionchecker-9.4.0.0-343.jar` | `pentaho:pentaho-versionchecker:10.1.0.0-SNAPSHOT` |
+| `barbecue-1.5-beta1.jar` | `barbecue:barbecue:1.5-beta1` |
 
 **Critical:** the engine job may have deployed an **empty** `simple-jndi` stub so
 tests resolve. PRD **must** overwrite it with the real jar before packaging.

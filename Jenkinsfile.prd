@@ -428,7 +428,8 @@ EOF
         dir('pentaho-reporting') {
           sh '''
             set -euo pipefail
-            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # Only -DskipTests (NOT maven.test.skip): extensions need classic-core test-jar
+            TEST_FLAGS="-DskipTests"
             # Ensure release-seed POMs are the flat ones (not a stale workspace cache)
             if [ -f "${MAVEN_REPO_LOCAL}/pentaho/simple-jndi/1.0.13/simple-jndi-1.0.13.pom" ]; then
               if grep -q 'pentaho-ce-jar-parent-pom' \
@@ -453,7 +454,8 @@ EOF
         dir('pentaho-reporting') {
           sh '''
             set -euo pipefail
-            TEST_FLAGS="-DskipTests -Dmaven.test.skip=true"
+            # -DskipTests only: still compile tests so test-jar deps resolve in reactor
+            TEST_FLAGS="-DskipTests"
             # No kettle / mondrian / metadata highdeps
             mvn -B -U -s "${WORKSPACE}/ci-settings.xml" \
               clean deploy ${TEST_FLAGS} \
